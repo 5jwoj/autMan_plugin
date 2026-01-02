@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Node modules (if any)
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
