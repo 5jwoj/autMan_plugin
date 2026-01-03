@@ -27,7 +27,6 @@
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
-const DELETE_MODE_BUCKET = "stomach_pain_delete_mode"; // 删除模式状态存储
 const DELETE_MODE_TIMEOUT = 5 * 60 * 1000; // 5分钟超时
 
 /**
@@ -350,11 +349,23 @@ async function showDetailedRecords() {
  */
 async function setDeleteMode(userID) {
     try {
-        const state = {
+        const STORAGE_KEY = `user_${userID}`;
+        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+
+        if (!existingRecords || existingRecords === "" || existingRecords === "null") {
+            console.log("[删除模式] 无记录数据，无法设置删除模式");
+            return;
+        }
+
+        let data = JSON.parse(existingRecords);
+
+        // 在数据中添加删除模式标记
+        data._deleteMode = {
             timestamp: new Date().getTime(),
-            mode: "delete"
+            active: true
         };
-        await bucketSet(DELETE_MODE_BUCKET, `user_${userID}`, JSON.stringify(state));
+
+        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
         console.log(`[删除模式] 已为用户 ${userID} 设置删除模式`);
     } catch (error) {
         console.error("设置删除模式失败:", error);
@@ -366,23 +377,30 @@ async function setDeleteMode(userID) {
  */
 async function isInDeleteMode(userID) {
     try {
-        const stateStr = await bucketGet(DELETE_MODE_BUCKET, `user_${userID}`);
-        if (!stateStr || stateStr === "" || stateStr === "null") {
+        const STORAGE_KEY = `user_${userID}`;
+        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+
+        if (!existingRecords || existingRecords === "" || existingRecords === "null") {
             return false;
         }
 
-        const state = JSON.parse(stateStr);
+        const data = JSON.parse(existingRecords);
+
+        if (!data._deleteMode || !data._deleteMode.active) {
+            return false;
+        }
+
         const now = new Date().getTime();
-        const elapsed = now - state.timestamp;
+        const elapsed = now - data._deleteMode.timestamp;
 
         // 检查是否超时
         if (elapsed > DELETE_MODE_TIMEOUT) {
             console.log(`[删除模式] 已超时 ${elapsed}ms，清除状态`);
-            await bucketDel(DELETE_MODE_BUCKET, `user_${userID}`);
+            await clearDeleteMode(userID);
             return false;
         }
 
-        console.log(`[删除模式] 用户处于删除模式，剩余时间: ${DELETE_MODE_TIMEOUT - elapsed}ms`);
+        console.log(`[删除模式] 用户处于删除模式，剩余时间: ${Math.round((DELETE_MODE_TIMEOUT - elapsed) / 1000)}秒`);
         return true;
     } catch (error) {
         console.error("检查删除模式失败:", error);
@@ -395,7 +413,17 @@ async function isInDeleteMode(userID) {
  */
 async function clearDeleteMode(userID) {
     try {
-        await bucketDel(DELETE_MODE_BUCKET, `user_${userID}`);
+        const STORAGE_KEY = `user_${userID}`;
+        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+
+        if (!existingRecords || existingRecords === "" || existingRecords === "null") {
+            return;
+        }
+
+        let data = JSON.parse(existingRecords);
+        delete data._deleteMode;
+
+        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
         console.log(`[删除模式] 已清除用户 ${userID} 的删除模式`);
     } catch (error) {
         console.error("清除删除模式失败:", error);

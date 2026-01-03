@@ -1,5 +1,5 @@
 /**
- * 奥力给记录插件 v1.2.0
+ * 奥力给记录插件 v1.2.1
  * 基于autMan实际API结构开发
  * 功能: 自动记录每次拉屎的时间,并支持查询历史记录
  * 
@@ -12,7 +12,7 @@
  * - 发送「奥力给帮助」→ 显示帮助
  * 
  * 更新历史:
- * v1.2.0 - 新增智能删除模式：查看记录后可直接发送编号删除（5分钟有效）
+ * v1.2.1 - 修复智能删除模式：改用记录数据存储状态，兼容旧数据格式
  * v1.0.0 - 初始版本,采用时间轴视图,支持智能分页
  */
 
@@ -21,11 +21,10 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.03.3]
+// [version: 2026.01.03.4]
 
 // 定义存储桶名称
 const BUCKET_NAME = "aoligei_record";
-const DELETE_MODE_BUCKET = "aoligei_delete_mode"; // 删除模式状态存储
 const DELETE_MODE_TIMEOUT = 5 * 60 * 1000; // 5分钟超时
 
 /**
@@ -123,30 +122,37 @@ async function recordPoopTime() {
         // 定义存储键
         const STORAGE_KEY = `user_${userID}`;
 
-        // 获取已有记录
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
-        let records = [];
+        // 获取已有数据
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        let data = { records: [] };
 
-        if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
+        if (existingData && existingData !== "" && existingData !== "null") {
             try {
-                records = JSON.parse(existingRecords);
+                const parsed = JSON.parse(existingData);
+                // 兼容旧数据格式（数组）
+                if (Array.isArray(parsed)) {
+                    data.records = parsed;
+                } else {
+                    data = parsed;
+                    if (!data.records) data.records = [];
+                }
             } catch (e) {
-                console.log("解析记录失败,初始化为空数组");
-                records = [];
+                console.log("解析记录失败,初始化为空数据");
+                data = { records: [] };
             }
         }
 
         // 添加新记录
-        records.push({
+        data.records.push({
             time: currentTime,
             timestamp: new Date().getTime()
         });
 
-        // 保存记录
-        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(records));
+        // 保存数据
+        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
         // 发送确认消息
-        const message = `✅ 奥力给! 已记录 ${userName} 的拉屎时间:\n${currentTime}\n\n当前共有 ${records.length} 条记录`;
+        const message = `✅ 奥力给! 已记录 ${userName} 的拉屎时间:\n${currentTime}\n\n当前共有 ${data.records.length} 条记录`;
         await sendMessage(message);
 
     } catch (error) {
@@ -268,12 +274,18 @@ async function showAllRecords() {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
 
-        if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
+        if (existingData && existingData !== "" && existingData !== "null") {
             try {
-                records = JSON.parse(existingRecords);
+                const parsed = JSON.parse(existingData);
+                // 兼容旧数据格式
+                if (Array.isArray(parsed)) {
+                    records = parsed;
+                } else if (parsed.records) {
+                    records = parsed.records;
+                }
             } catch (e) {
                 records = [];
             }
@@ -302,12 +314,18 @@ async function showDetailedRecords() {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
 
-        if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
+        if (existingData && existingData !== "" && existingData !== "null") {
             try {
-                records = JSON.parse(existingRecords);
+                const parsed = JSON.parse(existingData);
+                // 兼容旧数据格式
+                if (Array.isArray(parsed)) {
+                    records = parsed;
+                } else if (parsed.records) {
+                    records = parsed.records;
+                }
             } catch (e) {
                 records = [];
             }
@@ -348,11 +366,36 @@ async function showDetailedRecords() {
  */
 async function setDeleteMode(userID) {
     try {
-        const state = {
+        const STORAGE_KEY = `user_${userID}`;
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+
+        if (!existingData || existingData === "" || existingData === "null") {
+            console.log("[删除模式] 无记录数据，无法设置删除模式");
+            return;
+        }
+
+        let data;
+        try {
+            const parsed = JSON.parse(existingData);
+            // 兼容旧数据格式 - 如果是数组，转换为新格式
+            if (Array.isArray(parsed)) {
+                data = { records: parsed };
+            } else {
+                data = parsed;
+                if (!data.records) data.records = [];
+            }
+        } catch (e) {
+            console.log("[删除模式] 数据解析失败");
+            return;
+        }
+
+        // 在数据中添加删除模式标记
+        data._deleteMode = {
             timestamp: new Date().getTime(),
-            mode: "delete"
+            active: true
         };
-        await bucketSet(DELETE_MODE_BUCKET, `user_${userID}`, JSON.stringify(state));
+
+        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
         console.log(`[删除模式] 已为用户 ${userID} 设置删除模式`);
     } catch (error) {
         console.error("设置删除模式失败:", error);
@@ -364,23 +407,41 @@ async function setDeleteMode(userID) {
  */
 async function isInDeleteMode(userID) {
     try {
-        const stateStr = await bucketGet(DELETE_MODE_BUCKET, `user_${userID}`);
-        if (!stateStr || stateStr === "" || stateStr === "null") {
+        const STORAGE_KEY = `user_${userID}`;
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+
+        if (!existingData || existingData === "" || existingData === "null") {
             return false;
         }
 
-        const state = JSON.parse(stateStr);
+        let data;
+        try {
+            const parsed = JSON.parse(existingData);
+            // 兼容旧数据格式
+            if (Array.isArray(parsed)) {
+                return false; // 旧格式数据没有删除模式
+            } else {
+                data = parsed;
+            }
+        } catch (e) {
+            return false;
+        }
+
+        if (!data._deleteMode || !data._deleteMode.active) {
+            return false;
+        }
+
         const now = new Date().getTime();
-        const elapsed = now - state.timestamp;
+        const elapsed = now - data._deleteMode.timestamp;
 
         // 检查是否超时
         if (elapsed > DELETE_MODE_TIMEOUT) {
             console.log(`[删除模式] 已超时 ${elapsed}ms，清除状态`);
-            await bucketDel(DELETE_MODE_BUCKET, `user_${userID}`);
+            await clearDeleteMode(userID);
             return false;
         }
 
-        console.log(`[删除模式] 用户处于删除模式，剩余时间: ${DELETE_MODE_TIMEOUT - elapsed}ms`);
+        console.log(`[删除模式] 用户处于删除模式，剩余时间: ${Math.round((DELETE_MODE_TIMEOUT - elapsed) / 1000)}秒`);
         return true;
     } catch (error) {
         console.error("检查删除模式失败:", error);
@@ -393,7 +454,28 @@ async function isInDeleteMode(userID) {
  */
 async function clearDeleteMode(userID) {
     try {
-        await bucketDel(DELETE_MODE_BUCKET, `user_${userID}`);
+        const STORAGE_KEY = `user_${userID}`;
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+
+        if (!existingData || existingData === "" || existingData === "null") {
+            return;
+        }
+
+        let data;
+        try {
+            const parsed = JSON.parse(existingData);
+            // 兼容旧数据格式
+            if (Array.isArray(parsed)) {
+                data = { records: parsed };
+            } else {
+                data = parsed;
+            }
+        } catch (e) {
+            return;
+        }
+        delete data._deleteMode;
+
+        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
         console.log(`[删除模式] 已清除用户 ${userID} 的删除模式`);
     } catch (error) {
         console.error("清除删除模式失败:", error);
@@ -408,20 +490,27 @@ async function deleteRecordByIndex(indexStr) {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        // 获取已有记录
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        // 获取已有数据
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        let data;
         let records = [];
 
-        if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
+        if (existingData && existingData !== "" && existingData !== "null") {
             try {
-                records = JSON.parse(existingRecords);
+                const parsed = JSON.parse(existingData);
+                // 兼容旧数据格式
+                if (Array.isArray(parsed)) {
+                    data = { records: parsed };
+                    records = parsed;
+                } else {
+                    data = parsed;
+                    records = data.records || [];
+                }
             } catch (e) {
                 await sendMessage("❌ 记录数据格式错误");
                 return;
             }
-        }
-
-        if (records.length === 0) {
+        } else {
             await sendMessage("📋 暂无记录可删除");
             return;
         }
@@ -436,12 +525,13 @@ async function deleteRecordByIndex(indexStr) {
         // 删除指定记录
         const deletedRecord = records[index - 1];
         records.splice(index - 1, 1);
+        data.records = records;
 
-        // 保存更新后的记录
+        // 保存更新后的数据
         if (records.length === 0) {
             await bucketDel(BUCKET_NAME, STORAGE_KEY);
         } else {
-            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(records));
+            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
         }
 
         // 发送确认消息
