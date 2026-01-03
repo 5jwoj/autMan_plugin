@@ -1,5 +1,5 @@
 /**
- * 肚子疼记录插件 v1.5.1
+ * 肚子疼记录插件 v1.6.0
  * 基于autMan实际API结构重写
  * 功能: 自动记录孩子肚子疼的时间,并支持查询历史记录
  * 
@@ -12,7 +12,7 @@
  * - 发送「肚子疼帮助」→ 显示帮助
  * 
  * 更新历史:
- * v1.5.1 - 优化删除交互：发送删除指令时自动显示详细记录
+ * v1.6.0 - 新增智能删除模式：查看记录后可直接发送编号删除（5分钟有效）
  * v1.4.0 - 采用时间轴视图,添加智能分页(默认显示最近7天)
  * v1.3.0 - 尝试日历UI设计
  * v1.2.0 - 新增日历视图
@@ -23,10 +23,12 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.03.2]
+// [version: 2026.01.03.3]
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
+const DELETE_MODE_BUCKET = "stomach_pain_delete_mode"; // 删除模式状态存储
+const DELETE_MODE_TIMEOUT = 5 * 60 * 1000; // 5分钟超时
 
 /**
  * 获取当前时间字符串
@@ -328,14 +330,75 @@ async function showDetailedRecords() {
         });
 
         message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-        message += "💡 使用「删除肚子疼记录 [编号]」可删除指定记录\n";
-        message += "例如: 删除肚子疼记录 3";
+        message += "💡 现在可以直接发送编号删除记录\n";
+        message += "例如: 直接发送 3 即可删除第3条\n";
+        message += "或使用完整指令: 删除肚子疼记录 3";
 
         await sendMessage(message);
+
+        // 设置删除模式状态
+        await setDeleteMode(userID);
 
     } catch (error) {
         console.error("查询详细记录时出错:", error);
         await sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
+    }
+}
+
+/**
+ * 设置删除模式状态
+ */
+async function setDeleteMode(userID) {
+    try {
+        const state = {
+            timestamp: new Date().getTime(),
+            mode: "delete"
+        };
+        await bucketSet(DELETE_MODE_BUCKET, `user_${userID}`, JSON.stringify(state));
+        console.log(`[删除模式] 已为用户 ${userID} 设置删除模式`);
+    } catch (error) {
+        console.error("设置删除模式失败:", error);
+    }
+}
+
+/**
+ * 检查是否处于删除模式
+ */
+async function isInDeleteMode(userID) {
+    try {
+        const stateStr = await bucketGet(DELETE_MODE_BUCKET, `user_${userID}`);
+        if (!stateStr || stateStr === "" || stateStr === "null") {
+            return false;
+        }
+
+        const state = JSON.parse(stateStr);
+        const now = new Date().getTime();
+        const elapsed = now - state.timestamp;
+
+        // 检查是否超时
+        if (elapsed > DELETE_MODE_TIMEOUT) {
+            console.log(`[删除模式] 已超时 ${elapsed}ms，清除状态`);
+            await bucketDel(DELETE_MODE_BUCKET, `user_${userID}`);
+            return false;
+        }
+
+        console.log(`[删除模式] 用户处于删除模式，剩余时间: ${DELETE_MODE_TIMEOUT - elapsed}ms`);
+        return true;
+    } catch (error) {
+        console.error("检查删除模式失败:", error);
+        return false;
+    }
+}
+
+/**
+ * 清除删除模式状态
+ */
+async function clearDeleteMode(userID) {
+    try {
+        await bucketDel(DELETE_MODE_BUCKET, `user_${userID}`);
+        console.log(`[删除模式] 已清除用户 ${userID} 的删除模式`);
+    } catch (error) {
+        console.error("清除删除模式失败:", error);
     }
 }
 
@@ -464,8 +527,21 @@ async function main() {
     try {
         // 获取消息内容
         const content = getMessageContent().trim();
+        const userID = getUserID();
 
         console.log(`[肚子疼插件] 收到消息: [${content}]`);
+
+        // 检查是否是纯数字（智能删除模式）
+        const isPureNumber = /^\d+$/.test(content);
+        if (isPureNumber) {
+            const inDeleteMode = await isInDeleteMode(userID);
+            if (inDeleteMode) {
+                console.log(`[肚子疼插件] 智能删除模式: 删除编号 ${content}`);
+                await deleteRecordByIndex(content);
+                await clearDeleteMode(userID);
+                return;
+            }
+        }
 
         // 检查是否包含关键词(按长度从长到短匹配)
         if (content.indexOf("清空肚子疼记录") !== -1) {
