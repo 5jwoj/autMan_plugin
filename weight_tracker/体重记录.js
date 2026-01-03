@@ -1,5 +1,5 @@
 /**
- * 体重记录插件 v1.0.0
+ * 体重记录插件 v1.0.1
  * 基于autMan实际API结构开发
  * 功能: 体重记录、趋势分析、目标管理
  * 
@@ -18,6 +18,7 @@
  * - 发送「体重帮助」→ 显示帮助
  * 
  * 更新历史:
+ * v1.0.1 - 优化帮助信息显示,指令和说明分开更清晰
  * v1.0.0 - 初始版本,支持体重记录、趋势分析、目标管理
  */
 
@@ -26,7 +27,7 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.03.1]
+// [version: 2026.01.03.2]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
@@ -127,7 +128,7 @@ function getUserName() {
 function isValidDate(dateStr) {
     const regex = /^\d{4}-\d{2}-\d{2}$/;
     if (!regex.test(dateStr)) return false;
-    
+
     const date = new Date(dateStr);
     return date instanceof Date && !isNaN(date);
 }
@@ -140,27 +141,27 @@ async function recordWeight(weight, date) {
         const userID = getUserID();
         const userName = getUserName();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         // 验证体重值
         const weightValue = parseFloat(weight);
         if (isNaN(weightValue) || weightValue <= 0 || weightValue > 500) {
             await sendMessage("❌ 体重数值无效,请输入0-500之间的数字");
             return;
         }
-        
+
         // 使用指定日期或当前日期
         const recordDate = date || getCurrentDate();
-        
+
         // 如果指定了日期,验证日期格式
         if (date && !isValidDate(date)) {
             await sendMessage("❌ 日期格式无效,请使用 YYYY-MM-DD 格式 (如: 2026-01-01)");
             return;
         }
-        
+
         // 获取已有数据
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -170,18 +171,18 @@ async function recordWeight(weight, date) {
                 data = { records: [], target: null };
             }
         }
-        
+
         // 检查当天是否已有记录
         const existingIndex = data.records.findIndex(r => r.date === recordDate);
-        
+
         if (existingIndex >= 0) {
             // 更新当天记录
             const oldWeight = data.records[existingIndex].weight;
             data.records[existingIndex].weight = weightValue;
             data.records[existingIndex].timestamp = new Date().getTime();
-            
+
             await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
-            
+
             const diff = weightValue - oldWeight;
             const diffStr = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
             await sendMessage(`✅ 已更新 ${userName} 在 ${recordDate} 的体重记录:\\n${oldWeight}kg → ${weightValue}kg (${diffStr}kg)\\n\\n当前共有 ${data.records.length} 条记录`);
@@ -192,14 +193,14 @@ async function recordWeight(weight, date) {
                 weight: weightValue,
                 timestamp: new Date().getTime()
             });
-            
+
             // 按日期排序
             data.records.sort((a, b) => a.date.localeCompare(b.date));
-            
+
             await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
-            
+
             let message = `✅ 已记录 ${userName} 在 ${recordDate} 的体重: ${weightValue}kg\\n\\n当前共有 ${data.records.length} 条记录`;
-            
+
             // 如果设置了目标,显示进度
             if (data.target) {
                 const diff = weightValue - data.target;
@@ -211,10 +212,10 @@ async function recordWeight(weight, date) {
                     message += `\\n\\n📊 距离目标体重还差: ${Math.abs(diff).toFixed(1)}kg (需增重)`;
                 }
             }
-            
+
             await sendMessage(message);
         }
-        
+
     } catch (error) {
         console.error("记录体重时出错:", error);
         await sendMessage(`❌ 记录体重时出错: ${error.message}`);
@@ -228,10 +229,10 @@ async function showWeightRecords(days) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -239,27 +240,27 @@ async function showWeightRecords(days) {
                 data = { records: [], target: null };
             }
         }
-        
+
         if (data.records.length === 0) {
             await sendMessage("📋 暂无体重记录\\n\\n💡 发送「体重 65.5」开始记录");
             return;
         }
-        
+
         // 按日期排序(最新在前)
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
-        
+
         // 根据天数过滤
         let displayRecords = sortedRecords;
         if (days) {
             displayRecords = sortedRecords.slice(0, days);
         }
-        
+
         let message = `📊 体重记录 (共${data.records.length}条)\\n`;
         message += "━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n";
-        
+
         displayRecords.forEach((record, index) => {
             const [year, month, day] = record.date.split('-');
-            
+
             // 计算趋势
             let trend = "";
             if (index < displayRecords.length - 1) {
@@ -273,17 +274,17 @@ async function showWeightRecords(days) {
                     trend = " → 持平";
                 }
             }
-            
+
             message += `🗓️ ${parseInt(month)}月${parseInt(day)}日\\n`;
             message += `  📊 ${record.weight}kg${trend}\\n\\n`;
         });
-        
+
         // 如果还有更多记录
         if (days && sortedRecords.length > days) {
             message += `... 还有${sortedRecords.length - days}条记录\\n`;
             message += `发送「体重统计」查看全部\\n\\n`;
         }
-        
+
         // 显示目标信息
         if (data.target) {
             const latestWeight = sortedRecords[0].weight;
@@ -298,9 +299,9 @@ async function showWeightRecords(days) {
                 message += `📊 还需增重: ${Math.abs(diff).toFixed(1)}kg`;
             }
         }
-        
+
         await sendMessage(message);
-        
+
     } catch (error) {
         console.error("查询记录时出错:", error);
         await sendMessage(`❌ 查询记录时出错: ${error.message}`);
@@ -314,10 +315,10 @@ async function showStatistics(days) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -325,15 +326,15 @@ async function showStatistics(days) {
                 data = { records: [], target: null };
             }
         }
-        
+
         if (data.records.length === 0) {
             await sendMessage("📋 暂无体重记录");
             return;
         }
-        
+
         // 按日期排序
         const sortedRecords = data.records.slice().sort((a, b) => a.date.localeCompare(b.date));
-        
+
         // 根据天数过滤
         let statsRecords = sortedRecords;
         if (days) {
@@ -342,37 +343,37 @@ async function showStatistics(days) {
             const cutoffStr = cutoffDate.toISOString().substring(0, 10);
             statsRecords = sortedRecords.filter(r => r.date >= cutoffStr);
         }
-        
+
         if (statsRecords.length === 0) {
             await sendMessage(`📋 最近${days}天暂无体重记录`);
             return;
         }
-        
+
         // 计算统计数据
         const weights = statsRecords.map(r => r.weight);
         const maxWeight = Math.max(...weights);
         const minWeight = Math.min(...weights);
         const avgWeight = weights.reduce((a, b) => a + b, 0) / weights.length;
         const totalChange = statsRecords[statsRecords.length - 1].weight - statsRecords[0].weight;
-        
+
         // 找到最高和最低体重的日期
         const maxRecord = statsRecords.find(r => r.weight === maxWeight);
         const minRecord = statsRecords.find(r => r.weight === minWeight);
-        
+
         let message = `📊 体重统计`;
         if (days) {
             message += ` (最近${days}天)`;
         }
         message += `\\n━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;
-        
+
         message += `📈 最高体重: ${maxWeight}kg\\n`;
         message += `   🗓️ ${maxRecord.date}\\n\\n`;
-        
+
         message += `📉 最低体重: ${minWeight}kg\\n`;
         message += `   🗓️ ${minRecord.date}\\n\\n`;
-        
+
         message += `📊 平均体重: ${avgWeight.toFixed(1)}kg\\n\\n`;
-        
+
         message += `📊 总体变化: `;
         if (totalChange > 0.1) {
             message += `↑ +${totalChange.toFixed(1)}kg`;
@@ -382,9 +383,9 @@ async function showStatistics(days) {
             message += `→ 基本持平`;
         }
         message += `\\n`;
-        
+
         message += `   从 ${statsRecords[0].date} 到 ${statsRecords[statsRecords.length - 1].date}\\n`;
-        
+
         // 显示目标信息
         if (data.target) {
             message += `\\n━━━━━━━━━━━━━━━━━━━━━━━━━\\n`;
@@ -399,9 +400,9 @@ async function showStatistics(days) {
                 message += `📊 还需增重: ${Math.abs(diff).toFixed(1)}kg`;
             }
         }
-        
+
         await sendMessage(message);
-        
+
     } catch (error) {
         console.error("查询统计时出错:", error);
         await sendMessage(`❌ 查询统计时出错: ${error.message}`);
@@ -415,10 +416,10 @@ async function showDetailedRecords() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -426,29 +427,29 @@ async function showDetailedRecords() {
                 data = { records: [], target: null };
             }
         }
-        
+
         if (data.records.length === 0) {
             await sendMessage("📋 暂无体重记录");
             return;
         }
-        
+
         // 按日期排序(最新在前)
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
-        
+
         let message = `📋 体重详细记录 (共${sortedRecords.length}条)\\n`;
         message += "━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n";
-        
+
         sortedRecords.forEach((record, index) => {
             const num = index + 1;
             message += `[${num}] ${record.date}  ${record.weight}kg\\n`;
         });
-        
+
         message += "\\n━━━━━━━━━━━━━━━━━━━━━━━━━\\n";
         message += "💡 现在可以直接发送编号删除记录\\n";
         message += "或使用「修改体重记录 [编号] [新数值]」修改";
-        
+
         await sendMessage(message);
-        
+
     } catch (error) {
         console.error("查询详细记录时出错:", error);
         await sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
@@ -462,18 +463,18 @@ async function setTargetWeight(target) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         // 验证目标值
         const targetValue = parseFloat(target);
         if (isNaN(targetValue) || targetValue <= 0 || targetValue > 500) {
             await sendMessage("❌ 目标体重数值无效,请输入0-500之间的数字");
             return;
         }
-        
+
         // 获取已有数据
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -482,18 +483,18 @@ async function setTargetWeight(target) {
                 data = { records: [], target: null };
             }
         }
-        
+
         data.target = targetValue;
         await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
-        
+
         let message = `✅ 已设置目标体重为: ${targetValue}kg`;
-        
+
         // 如果有记录,显示当前进度
         if (data.records.length > 0) {
             const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
             const latestWeight = sortedRecords[0].weight;
             const diff = latestWeight - targetValue;
-            
+
             message += `\\n\\n📊 当前体重: ${latestWeight}kg\\n`;
             if (Math.abs(diff) < 0.1) {
                 message += `🎉 恭喜!已达成目标!`;
@@ -503,9 +504,9 @@ async function setTargetWeight(target) {
                 message += `📊 还需增重: ${Math.abs(diff).toFixed(1)}kg`;
             }
         }
-        
+
         await sendMessage(message);
-        
+
     } catch (error) {
         console.error("设置目标时出错:", error);
         await sendMessage(`❌ 设置目标时出错: ${error.message}`);
@@ -519,10 +520,10 @@ async function showTargetProgress() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -530,25 +531,25 @@ async function showTargetProgress() {
                 data = { records: [], target: null };
             }
         }
-        
+
         if (!data.target) {
             await sendMessage("❌ 尚未设置目标体重\\n\\n💡 发送「设置目标体重 60」来设定目标");
             return;
         }
-        
+
         if (data.records.length === 0) {
             await sendMessage(`🎯 目标体重: ${data.target}kg\\n\\n📋 暂无体重记录,无法计算进度`);
             return;
         }
-        
+
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
         const latestWeight = sortedRecords[0].weight;
         const diff = latestWeight - data.target;
-        
+
         let message = `🎯 目标进度\\n━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;
         message += `📊 当前体重: ${latestWeight}kg\\n`;
         message += `🎯 目标体重: ${data.target}kg\\n\\n`;
-        
+
         if (Math.abs(diff) < 0.1) {
             message += `🎉 恭喜!已达成目标体重!\\n\\n`;
             message += `继续保持健康的生活方式!`;
@@ -561,9 +562,9 @@ async function showTargetProgress() {
             const progress = ((1 - Math.abs(diff) / data.target) * 100).toFixed(1);
             message += `📈 进度: ${progress}%`;
         }
-        
+
         await sendMessage(message);
-        
+
     } catch (error) {
         console.error("查询目标进度时出错:", error);
         await sendMessage(`❌ 查询目标进度时出错: ${error.message}`);
@@ -577,10 +578,10 @@ async function deleteRecordByIndex(indexStr) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -589,39 +590,39 @@ async function deleteRecordByIndex(indexStr) {
                 return;
             }
         }
-        
+
         if (data.records.length === 0) {
             await sendMessage("📋 暂无记录可删除");
             return;
         }
-        
+
         // 解析编号
         const index = parseInt(indexStr);
-        
+
         // 按日期排序(最新在前)以匹配详细记录的显示顺序
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
-        
+
         if (isNaN(index) || index < 1 || index > sortedRecords.length) {
             await sendMessage(`❌ 无效的编号"${indexStr}"\\n请使用「体重详细记录」查看有效编号`);
             return;
         }
-        
+
         // 获取要删除的记录
         const deletedRecord = sortedRecords[index - 1];
-        
+
         // 从原数组中删除
         const originalIndex = data.records.findIndex(r => r.date === deletedRecord.date);
         data.records.splice(originalIndex, 1);
-        
+
         // 保存更新后的数据
         if (data.records.length === 0 && !data.target) {
             await bucketDel(BUCKET_NAME, STORAGE_KEY);
         } else {
             await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
         }
-        
+
         await sendMessage(`✅ 已删除记录 [${index}]:\\n${deletedRecord.date}  ${deletedRecord.weight}kg\\n\\n剩余 ${data.records.length} 条记录`);
-        
+
     } catch (error) {
         console.error("删除记录时出错:", error);
         await sendMessage(`❌ 删除记录时出错: ${error.message}`);
@@ -635,17 +636,17 @@ async function modifyRecordByIndex(indexStr, newWeight) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         // 验证新体重值
         const newWeightValue = parseFloat(newWeight);
         if (isNaN(newWeightValue) || newWeightValue <= 0 || newWeightValue > 500) {
             await sendMessage("❌ 体重数值无效,请输入0-500之间的数字");
             return;
         }
-        
+
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -654,38 +655,38 @@ async function modifyRecordByIndex(indexStr, newWeight) {
                 return;
             }
         }
-        
+
         if (data.records.length === 0) {
             await sendMessage("📋 暂无记录可修改");
             return;
         }
-        
+
         // 解析编号
         const index = parseInt(indexStr);
-        
+
         // 按日期排序(最新在前)
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
-        
+
         if (isNaN(index) || index < 1 || index > sortedRecords.length) {
             await sendMessage(`❌ 无效的编号"${indexStr}"\\n请使用「体重详细记录」查看有效编号`);
             return;
         }
-        
+
         // 获取要修改的记录
         const targetRecord = sortedRecords[index - 1];
-        
+
         // 在原数组中找到并修改
         const originalIndex = data.records.findIndex(r => r.date === targetRecord.date);
         const oldWeight = data.records[originalIndex].weight;
         data.records[originalIndex].weight = newWeightValue;
         data.records[originalIndex].timestamp = new Date().getTime();
-        
+
         await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
-        
+
         const diff = newWeightValue - oldWeight;
         const diffStr = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
         await sendMessage(`✅ 已修改记录 [${index}]:\\n${targetRecord.date}\\n${oldWeight}kg → ${newWeightValue}kg (${diffStr}kg)`);
-        
+
     } catch (error) {
         console.error("修改记录时出错:", error);
         await sendMessage(`❌ 修改记录时出错: ${error.message}`);
@@ -699,10 +700,10 @@ async function clearAllRecords() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-        
+
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
-        
+
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
@@ -710,10 +711,10 @@ async function clearAllRecords() {
                 data = { records: [], target: null };
             }
         }
-        
+
         // 保留目标体重,只清空记录
         data.records = [];
-        
+
         if (!data.target) {
             await bucketDel(BUCKET_NAME, STORAGE_KEY);
             await sendMessage("🗑️ 已清空所有体重记录");
@@ -721,7 +722,7 @@ async function clearAllRecords() {
             await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
             await sendMessage(`🗑️ 已清空所有体重记录\\n\\n🎯 目标体重 ${data.target}kg 已保留`);
         }
-        
+
     } catch (error) {
         console.error("清空记录时出错:", error);
         await sendMessage(`❌ 清空记录时出错: ${error.message}`);
@@ -733,28 +734,57 @@ async function clearAllRecords() {
  */
 async function showHelp() {
     try {
-        let helpMessage = "📖 体重记录插件使用说明 v1.0.0\\n";
+        let helpMessage = "📖 体重记录插件使用说明 v1.0.1\\n";
         helpMessage += "━━━━━━━━━━━━━━━━━━\\n\\n";
+
         helpMessage += "📝 记录体重\\n";
-        helpMessage += "• 体重 65.5 → 记录当前体重\\n";
-        helpMessage += "• 体重记录 2026-01-01 65.5 → 补录历史\\n\\n";
+        helpMessage += "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\\n";
+        helpMessage += "指令: 体重 65.5\\n";
+        helpMessage += "说明: 记录今天的体重为65.5kg\\n\\n";
+        helpMessage += "指令: 体重记录 2026-01-01 65.5\\n";
+        helpMessage += "说明: 补录2026年1月1日的体重为65.5kg\\n";
+        helpMessage += "━━━━━━━━━━━━━━━━━━\\n\\n";
+
         helpMessage += "📊 查看记录\\n";
-        helpMessage += "• 体重记录 → 查看最近记录\\n";
-        helpMessage += "• 体重详细记录 → 查看带编号的记录\\n";
-        helpMessage += "• 体重统计 → 查看完整统计\\n";
-        helpMessage += "• 体重统计 7 → 查看最近7天统计\\n";
-        helpMessage += "• 体重统计 30 → 查看最近30天统计\\n\\n";
+        helpMessage += "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\\n";
+        helpMessage += "指令: 体重记录\\n";
+        helpMessage += "说明: 查看最近7天的体重变化\\n\\n";
+        helpMessage += "指令: 体重详细记录\\n";
+        helpMessage += "说明: 查看所有记录(带编号)\\n\\n";
+        helpMessage += "指令: 体重统计\\n";
+        helpMessage += "说明: 查看全部数据统计\\n\\n";
+        helpMessage += "指令: 体重统计 7\\n";
+        helpMessage += "说明: 查看最近7天统计\\n\\n";
+        helpMessage += "指令: 体重统计 30\\n";
+        helpMessage += "说明: 查看最近30天统计\\n";
+        helpMessage += "━━━━━━━━━━━━━━━━━━\\n\\n";
+
         helpMessage += "🎯 目标管理\\n";
-        helpMessage += "• 设置目标体重 60 → 设定目标\\n";
-        helpMessage += "• 目标进度 → 查看目标进度\\n\\n";
+        helpMessage += "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\\n";
+        helpMessage += "指令: 设置目标体重 60\\n";
+        helpMessage += "说明: 设定目标体重为60kg\\n\\n";
+        helpMessage += "指令: 目标进度\\n";
+        helpMessage += "说明: 查看当前离目标还差多少\\n";
+        helpMessage += "━━━━━━━━━━━━━━━━━━\\n\\n";
+
         helpMessage += "✏️ 数据管理\\n";
-        helpMessage += "• 删除体重记录 3 → 删除第3条记录\\n";
-        helpMessage += "• 修改体重记录 3 66 → 修改第3条为66kg\\n";
-        helpMessage += "• 清空体重记录 → 清空所有记录\\n\\n";
-        helpMessage += "💡 提示: 单日多次记录会自动保留最新值";
-        
+        helpMessage += "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\\n";
+        helpMessage += "指令: 删除体重记录 3\\n";
+        helpMessage += "说明: 删除编号为3的记录\\n";
+        helpMessage += "(先发送「体重详细记录」查看编号)\\n\\n";
+        helpMessage += "指令: 修改体重记录 3 66\\n";
+        helpMessage += "说明: 将编号3的记录改为66kg\\n\\n";
+        helpMessage += "指令: 清空体重记录\\n";
+        helpMessage += "说明: 清空所有记录(保留目标)\\n";
+        helpMessage += "━━━━━━━━━━━━━━━━━━\\n\\n";
+
+        helpMessage += "💡 小技巧\\n";
+        helpMessage += "• 单日多次记录会保留最新值\\n";
+        helpMessage += "• 查看详细记录后可直接发送数字删除\\n";
+        helpMessage += "  (例如: 发送 3 即可删除第3条)";
+
         await sendMessage(helpMessage);
-        
+
     } catch (error) {
         console.error("显示帮助时出错:", error);
         await sendMessage(`❌ 显示帮助时出错: ${error.message}`);
@@ -768,9 +798,9 @@ async function main() {
     try {
         const content = getMessageContent().trim();
         const userID = getUserID();
-        
+
         console.log(`[体重记录插件] 收到消息: [${content}]`);
-        
+
         // 检查是否是纯数字(智能删除)
         const isPureNumber = /^\d+$/.test(content);
         if (isPureNumber) {
@@ -778,7 +808,7 @@ async function main() {
             await deleteRecordByIndex(content);
             return;
         }
-        
+
         // 命令匹配(按长度从长到短)
         if (content.indexOf("清空体重记录") !== -1) {
             console.log("[体重记录插件] 执行: 清空记录");
@@ -840,7 +870,7 @@ async function main() {
                 await sendMessage("❌ 格式错误\\n正确格式: 体重 [数值]\\n例如: 体重 65.5");
             }
         }
-        
+
     } catch (error) {
         console.error("[体重记录插件] 执行出错:", error);
         try {
