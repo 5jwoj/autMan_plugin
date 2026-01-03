@@ -1,5 +1,5 @@
 /**
- * 肚子疼记录插件 v1.5.0
+ * 肚子疼记录插件 v1.5.1
  * 基于autMan实际API结构重写
  * 功能: 自动记录孩子肚子疼的时间,并支持查询历史记录
  * 
@@ -12,7 +12,7 @@
  * - 发送「肚子疼帮助」→ 显示帮助
  * 
  * 更新历史:
- * v1.5.0 - 新增详细记录查看和按编号删除单条记录功能
+ * v1.5.1 - 优化删除交互：发送删除指令时自动显示详细记录
  * v1.4.0 - 采用时间轴视图,添加智能分页(默认显示最近7天)
  * v1.3.0 - 尝试日历UI设计
  * v1.2.0 - 新增日历视图
@@ -23,7 +23,7 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.03.1]
+// [version: 2026.01.03.2]
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
@@ -478,7 +478,9 @@ async function main() {
             if (match && match[1]) {
                 await deleteRecordByIndex(match[1]);
             } else {
-                await sendMessage("❌ 请指定要删除的记录编号\n例如: 删除肚子疼记录 3");
+                // 没有编号时，自动显示详细记录
+                console.log("[肚子疼插件] 未提供编号，显示详细记录");
+                await showDetailedRecords();
             }
         } else if (content.indexOf("肚子疼详细记录") !== -1) {
             console.log("[肚子疼插件] 执行: 查看详细记录");
