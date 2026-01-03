@@ -1,5 +1,5 @@
 /**
- * 奥力给记录插件 v1.3.0
+ * 奥力给记录插件 v1.6.1
  * 基于autMan实际API结构开发
  * 功能: 自动记录每次拉屎的时间,并支持查询历史记录
  * 
@@ -12,19 +12,20 @@
  * - 发送「奥力给帮助」→ 显示帮助
  * 
  * 更新历史:
- * v1.3.0 - 简化删除功能：直接支持纯数字输入删除，无需状态管理
+ * v1.6.1 - 在记录视图中显示类型信息
  * v1.0.0 - 初始版本,采用时间轴视图,支持智能分页
  */
 
 // [disable:false]
-// [rule: .*奥力给.*]
+// [rule: (.*奥力给.*|^\d+$|^[ABCabc]$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.03.5]
+// [version: 2026.01.03.10]
 
 // 定义存储桶名称
 const BUCKET_NAME = "aoligei_record";
+const PENDING_TYPE_BUCKET = "aoligei_pending_type"; // 等待类型选择的状态
 
 /**
  * 获取当前时间字符串
@@ -144,19 +145,87 @@ async function recordPoopTime() {
         // 添加新记录
         data.records.push({
             time: currentTime,
-            timestamp: new Date().getTime()
+            timestamp: new Date().getTime(),
+            type: null  // 类型将在用户选择后更新
         });
 
         // 保存数据
         await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
-        // 发送确认消息
-        const message = `✅ 奥力给! 已记录 ${userName} 的拉屎时间:\n${currentTime}\n\n当前共有 ${data.records.length} 条记录`;
+        // 设置等待类型选择状态
+        await bucketSet(PENDING_TYPE_BUCKET, STORAGE_KEY, JSON.stringify({
+            recordIndex: data.records.length - 1,
+            timestamp: new Date().getTime()
+        }));
+
+        // 发送确认消息和选项
+        const message = `✅ 奥力给! 已记录 ${userName} 的拉屎时间:\n${currentTime}\n\n💩 请选择类型：\nA - 通畅\nB - 费劲\nC - 拉稀\n\n直接发送 A、B 或 C 即可`;
         await sendMessage(message);
 
     } catch (error) {
         console.error("记录时出错:", error);
         await sendMessage(`❌ 记录时出错: ${error.message}`);
+    }
+}
+
+
+/**
+ * 处理类型选择
+ */
+async function handleTypeSelection(typeChoice) {
+    try {
+        const userID = getUserID();
+        const STORAGE_KEY = `user_${userID}`;
+
+        // 获取等待状态
+        const pendingStateStr = await bucketGet(PENDING_TYPE_BUCKET, STORAGE_KEY);
+        if (!pendingStateStr || pendingStateStr === "" || pendingStateStr === "null") {
+            await sendMessage("❌ 没有待选择类型的记录\n请先发送「奥力给」记录时间");
+            return;
+        }
+
+        const pendingState = JSON.parse(pendingStateStr);
+
+        // 获取记录数据
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        if (!existingData) {
+            await sendMessage("❌ 记录数据丢失");
+            return;
+        }
+
+        let data;
+        try {
+            const parsed = JSON.parse(existingData);
+            if (Array.isArray(parsed)) {
+                data = { records: parsed };
+            } else {
+                data = parsed;
+            }
+        } catch (e) {
+            await sendMessage("❌ 数据格式错误");
+            return;
+        }
+
+        // 更新记录类型
+        const recordIndex = pendingState.recordIndex;
+        if (recordIndex >= 0 && recordIndex < data.records.length) {
+            const typeName = typeChoice === 'A' ? '通畅' : (typeChoice === 'B' ? '费劲' : '拉稀');
+            data.records[recordIndex].type = typeChoice;
+
+            // 保存更新后的数据
+            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
+
+            // 清除等待状态
+            await bucketDel(PENDING_TYPE_BUCKET, STORAGE_KEY);
+
+            await sendMessage(`✅ 已设置类型为: ${typeChoice} - ${typeName}`);
+        } else {
+            await sendMessage("❌ 记录索引无效");
+        }
+
+    } catch (error) {
+        console.error("处理类型选择时出错:", error);
+        await sendMessage(`❌ 处理类型选择时出错: ${error.message}`);
     }
 }
 
@@ -173,7 +242,7 @@ function generateTimelineView(records) {
         if (!groupedByDate[date]) {
             groupedByDate[date] = [];
         }
-        groupedByDate[date].push(record.time.substring(11, 16)); // 时:分
+        groupedByDate[date].push(record); // 保存完整记录对象
     });
 
     // 获取日期列表并排序(最新在前)
@@ -219,9 +288,9 @@ function generateTimelineView(records) {
 
     // 显示详细记录
     recentDays.forEach(date => {
-        const times = groupedByDate[date];
+        const dayRecords = groupedByDate[date];
         const [year, month, day] = date.split('-');
-        const count = times.length;
+        const count = dayRecords.length;
 
         // 频率标记
         let marker = "";
@@ -232,10 +301,14 @@ function generateTimelineView(records) {
 
         message += `🗓️ ${parseInt(month)}月${parseInt(day)}日 ${marker}\n`;
 
-        times.forEach((time, index) => {
-            const isLast = index === times.length - 1;
+        dayRecords.forEach((record, index) => {
+            const isLast = index === dayRecords.length - 1;
             const prefix = isLast ? "└─" : "├─";
-            message += `  ${prefix} ${time}\n`;
+            const timeStr = record.time.substring(11, 16);
+            const typeIcon = record.type ? (record.type === 'A' ? '🟢' : (record.type === 'B' ? '🟡' : '🔴')) : '';
+            const typeName = record.type ? (record.type === 'A' ? '通畅' : (record.type === 'B' ? '费劲' : '拉稀')) : '';
+            const typeDisplay = record.type ? ` ${typeIcon}${typeName}` : '';
+            message += `  ${prefix} ${timeStr}${typeDisplay}\n`;
         });
 
         message += `  📊 当天${count}次\n\n`;
@@ -341,13 +414,14 @@ async function showDetailedRecords() {
 
         records.forEach((record, index) => {
             const num = index + 1;
-            message += `[${num}] ${record.time}\n`;
+            const typeIcon = record.type ? (record.type === 'A' ? '🟢' : (record.type === 'B' ? '🟡' : '🔴')) : '⬜';
+            const typeName = record.type ? (record.type === 'A' ? '通畅' : (record.type === 'B' ? '费劲' : '拉稀')) : '未设置';
+            message += `[${num}] ${record.time} ${typeIcon} ${typeName}\n`;
         });
 
         message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n";
         message += "💡 现在可以直接发送编号删除记录\n";
-        message += "例如: 直接发送 3 即可删除第3条\n";
-        message += "或使用完整指令: 删除奥力给记录 3";
+        message += "例如: 直接发送 2 即可删除第2条";
 
         await sendMessage(message);
 
@@ -495,7 +569,16 @@ async function main() {
 
         console.log(`[奥力给插件] 收到消息: [${content}]`);
 
-        // 检查是否是纯数字（直接支持数字删除）
+        // 检查是否是A/B/C类型选择
+        const typeMatch = content.match(/^([ABC])$/i);
+        if (typeMatch) {
+            const typeChoice = typeMatch[1].toUpperCase();
+            console.log(`[奥力给插件] 检测到类型选择: ${typeChoice}`);
+            await handleTypeSelection(typeChoice);
+            return;
+        }
+
+        // 检查是否是纯数字（智能删除）
         const isPureNumber = /^\d+$/.test(content);
         if (isPureNumber) {
             console.log(`[奥力给插件] 检测到纯数字输入: ${content}，尝试删除该编号记录`);
