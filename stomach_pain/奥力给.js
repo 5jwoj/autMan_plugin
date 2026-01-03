@@ -1,5 +1,5 @@
 /**
- * 奥力给记录插件 v1.2.1
+ * 奥力给记录插件 v1.3.0
  * 基于autMan实际API结构开发
  * 功能: 自动记录每次拉屎的时间,并支持查询历史记录
  * 
@@ -12,7 +12,7 @@
  * - 发送「奥力给帮助」→ 显示帮助
  * 
  * 更新历史:
- * v1.2.1 - 修复智能删除模式：改用记录数据存储状态，兼容旧数据格式
+ * v1.3.0 - 简化删除功能：直接支持纯数字输入删除，无需状态管理
  * v1.0.0 - 初始版本,采用时间轴视图,支持智能分页
  */
 
@@ -21,11 +21,10 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.03.4]
+// [version: 2026.01.03.5]
 
 // 定义存储桶名称
 const BUCKET_NAME = "aoligei_record";
-const DELETE_MODE_TIMEOUT = 5 * 60 * 1000; // 5分钟超时
 
 /**
  * 获取当前时间字符串
@@ -352,135 +351,12 @@ async function showDetailedRecords() {
 
         await sendMessage(message);
 
-        // 设置删除模式状态
-        await setDeleteMode(userID);
-
     } catch (error) {
         console.error("查询详细记录时出错:", error);
         await sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
     }
 }
 
-/**
- * 设置删除模式状态
- */
-async function setDeleteMode(userID) {
-    try {
-        const STORAGE_KEY = `user_${userID}`;
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
-
-        if (!existingData || existingData === "" || existingData === "null") {
-            console.log("[删除模式] 无记录数据，无法设置删除模式");
-            return;
-        }
-
-        let data;
-        try {
-            const parsed = JSON.parse(existingData);
-            // 兼容旧数据格式 - 如果是数组，转换为新格式
-            if (Array.isArray(parsed)) {
-                data = { records: parsed };
-            } else {
-                data = parsed;
-                if (!data.records) data.records = [];
-            }
-        } catch (e) {
-            console.log("[删除模式] 数据解析失败");
-            return;
-        }
-
-        // 在数据中添加删除模式标记
-        data._deleteMode = {
-            timestamp: new Date().getTime(),
-            active: true
-        };
-
-        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
-        console.log(`[删除模式] 已为用户 ${userID} 设置删除模式`);
-    } catch (error) {
-        console.error("设置删除模式失败:", error);
-    }
-}
-
-/**
- * 检查是否处于删除模式
- */
-async function isInDeleteMode(userID) {
-    try {
-        const STORAGE_KEY = `user_${userID}`;
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
-
-        if (!existingData || existingData === "" || existingData === "null") {
-            return false;
-        }
-
-        let data;
-        try {
-            const parsed = JSON.parse(existingData);
-            // 兼容旧数据格式
-            if (Array.isArray(parsed)) {
-                return false; // 旧格式数据没有删除模式
-            } else {
-                data = parsed;
-            }
-        } catch (e) {
-            return false;
-        }
-
-        if (!data._deleteMode || !data._deleteMode.active) {
-            return false;
-        }
-
-        const now = new Date().getTime();
-        const elapsed = now - data._deleteMode.timestamp;
-
-        // 检查是否超时
-        if (elapsed > DELETE_MODE_TIMEOUT) {
-            console.log(`[删除模式] 已超时 ${elapsed}ms，清除状态`);
-            await clearDeleteMode(userID);
-            return false;
-        }
-
-        console.log(`[删除模式] 用户处于删除模式，剩余时间: ${Math.round((DELETE_MODE_TIMEOUT - elapsed) / 1000)}秒`);
-        return true;
-    } catch (error) {
-        console.error("检查删除模式失败:", error);
-        return false;
-    }
-}
-
-/**
- * 清除删除模式状态
- */
-async function clearDeleteMode(userID) {
-    try {
-        const STORAGE_KEY = `user_${userID}`;
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
-
-        if (!existingData || existingData === "" || existingData === "null") {
-            return;
-        }
-
-        let data;
-        try {
-            const parsed = JSON.parse(existingData);
-            // 兼容旧数据格式
-            if (Array.isArray(parsed)) {
-                data = { records: parsed };
-            } else {
-                data = parsed;
-            }
-        } catch (e) {
-            return;
-        }
-        delete data._deleteMode;
-
-        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
-        console.log(`[删除模式] 已清除用户 ${userID} 的删除模式`);
-    } catch (error) {
-        console.error("清除删除模式失败:", error);
-    }
-}
 
 /**
  * 根据编号删除记录
@@ -619,16 +495,12 @@ async function main() {
 
         console.log(`[奥力给插件] 收到消息: [${content}]`);
 
-        // 检查是否是纯数字（智能删除模式）
+        // 检查是否是纯数字（直接支持数字删除）
         const isPureNumber = /^\d+$/.test(content);
         if (isPureNumber) {
-            const inDeleteMode = await isInDeleteMode(userID);
-            if (inDeleteMode) {
-                console.log(`[奥力给插件] 智能删除模式: 删除编号 ${content}`);
-                await deleteRecordByIndex(content);
-                await clearDeleteMode(userID);
-                return;
-            }
+            console.log(`[奥力给插件] 检测到纯数字输入: ${content}，尝试删除该编号记录`);
+            await deleteRecordByIndex(content);
+            return;
         }
 
         // 检查是否包含关键词(按长度从长到短匹配)
