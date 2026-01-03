@@ -1,10 +1,10 @@
 /**
- * 体重记录插件 v1.0.1
+ * 体重记录插件 v1.0.2
  * 基于autMan实际API结构开发
  * 功能: 体重记录、趋势分析、目标管理
  * 
  * 使用说明:
- * - 发送「体重 [数值]」→ 记录当前体重 (如: 体重 65.5)
+ * - 发送「体重 [数值]」→ 记录当前体重 (如: 体重 65.5 或 体重65.5)
  * - 发送「体重记录 [日期] [数值]」→ 补录历史数据 (如: 体重记录 2026-01-01 65.5)
  * - 发送「体重记录」→ 查看最近记录和趋势
  * - 发送「体重详细记录」→ 查看带编号的完整记录
@@ -18,6 +18,7 @@
  * - 发送「体重帮助」→ 显示帮助
  * 
  * 更新历史:
+ * v1.0.2 - 优化指令输入,空格变为可选(体重65.5 和 体重 65.5 都可以)
  * v1.0.1 - 优化帮助信息显示,指令和说明分开更清晰
  * v1.0.0 - 初始版本,支持体重记录、趋势分析、目标管理
  */
@@ -27,7 +28,7 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.03.2]
+// [version: 2026.01.03.3]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
@@ -815,7 +816,7 @@ async function main() {
             await clearAllRecords();
         } else if (content.indexOf("修改体重记录") !== -1) {
             console.log("[体重记录插件] 执行: 修改记录");
-            const match = content.match(/修改体重记录\s+(\d+)\s+([\d.]+)/);
+            const match = content.match(/修改体重记录\s*(\d+)\s+([\d.]+)/);
             if (match && match[1] && match[2]) {
                 await modifyRecordByIndex(match[1], match[2]);
             } else {
@@ -823,7 +824,7 @@ async function main() {
             }
         } else if (content.indexOf("删除体重记录") !== -1) {
             console.log("[体重记录插件] 执行: 删除记录");
-            const match = content.match(/删除体重记录\s+(\d+)/);
+            const match = content.match(/删除体重记录\s*(\d+)/);
             if (match && match[1]) {
                 await deleteRecordByIndex(match[1]);
             } else {
@@ -834,12 +835,12 @@ async function main() {
             await showDetailedRecords();
         } else if (content.indexOf("体重统计") !== -1) {
             console.log("[体重记录插件] 执行: 查看统计");
-            const match = content.match(/体重统计\s+(\d+)/);
+            const match = content.match(/体重统计\s*(\d+)/);
             const days = match && match[1] ? parseInt(match[1]) : null;
             await showStatistics(days);
         } else if (content.indexOf("设置目标体重") !== -1) {
             console.log("[体重记录插件] 执行: 设置目标体重");
-            const match = content.match(/设置目标体重\s+([\d.]+)/);
+            const match = content.match(/设置目标体重\s*([\d.]+)/);
             if (match && match[1]) {
                 await setTargetWeight(match[1]);
             } else {
@@ -851,7 +852,7 @@ async function main() {
         } else if (content.indexOf("体重记录") !== -1) {
             console.log("[体重记录插件] 执行: 查看记录");
             // 检查是否是补录格式: 体重记录 2026-01-01 65.5
-            const match = content.match(/体重记录\s+([\d-]+)\s+([\d.]+)/);
+            const match = content.match(/体重记录\s*([\d-]+)\s+([\d.]+)/);
             if (match && match[1] && match[2]) {
                 await recordWeight(match[2], match[1]);
             } else {
@@ -863,7 +864,7 @@ async function main() {
         } else if (content.indexOf("体重") !== -1) {
             console.log("[体重记录插件] 执行: 记录体重");
             // 提取体重值
-            const match = content.match(/体重\s+([\d.]+)/);
+            const match = content.match(/体重\s*([\d.]+)/);
             if (match && match[1]) {
                 await recordWeight(match[1]);
             } else {
