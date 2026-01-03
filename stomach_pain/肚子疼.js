@@ -1,15 +1,18 @@
 /**
- * 肚子疼记录插件 v1.4.0
+ * 肚子疼记录插件 v1.5.0
  * 基于autMan实际API结构重写
  * 功能: 自动记录孩子肚子疼的时间,并支持查询历史记录
  * 
  * 使用说明:
  * - 发送「肚子疼」→ 自动记录时间
  * - 发送「肚子疼记录」→ 查看时间轴视图
+ * - 发送「肚子疼详细记录」→ 查看带编号的完整记录
+ * - 发送「删除肚子疼记录 [编号]」→ 删除指定编号的记录
  * - 发送「清空肚子疼记录」→ 清空所有记录
  * - 发送「肚子疼帮助」→ 显示帮助
  * 
  * 更新历史:
+ * v1.5.0 - 新增详细记录查看和按编号删除单条记录功能
  * v1.4.0 - 采用时间轴视图,添加智能分页(默认显示最近7天)
  * v1.3.0 - 尝试日历UI设计
  * v1.2.0 - 新增日历视图
@@ -20,7 +23,7 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.02.6]
+// [version: 2026.01.03.1]
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
@@ -292,6 +295,105 @@ async function showAllRecords() {
 }
 
 /**
+ * 显示带编号的详细记录
+ */
+async function showDetailedRecords() {
+    try {
+        const userID = getUserID();
+        const STORAGE_KEY = `user_${userID}`;
+
+        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        let records = [];
+
+        if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
+            try {
+                records = JSON.parse(existingRecords);
+            } catch (e) {
+                records = [];
+            }
+        }
+
+        if (records.length === 0) {
+            await sendMessage("📋 暂无肚子疼记录");
+            return;
+        }
+
+        // 生成带编号的详细记录
+        let message = `📋 肚子疼详细记录 (共${records.length}条)\n`;
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+
+        records.forEach((record, index) => {
+            const num = index + 1;
+            message += `[${num}] ${record.time}\n`;
+        });
+
+        message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        message += "💡 使用「删除肚子疼记录 [编号]」可删除指定记录\n";
+        message += "例如: 删除肚子疼记录 3";
+
+        await sendMessage(message);
+
+    } catch (error) {
+        console.error("查询详细记录时出错:", error);
+        await sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
+    }
+}
+
+/**
+ * 根据编号删除记录
+ */
+async function deleteRecordByIndex(indexStr) {
+    try {
+        const userID = getUserID();
+        const STORAGE_KEY = `user_${userID}`;
+
+        // 获取已有记录
+        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        let records = [];
+
+        if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
+            try {
+                records = JSON.parse(existingRecords);
+            } catch (e) {
+                await sendMessage("❌ 记录数据格式错误");
+                return;
+            }
+        }
+
+        if (records.length === 0) {
+            await sendMessage("📋 暂无记录可删除");
+            return;
+        }
+
+        // 解析编号
+        const index = parseInt(indexStr);
+        if (isNaN(index) || index < 1 || index > records.length) {
+            await sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「肚子疼详细记录」查看有效编号`);
+            return;
+        }
+
+        // 删除指定记录
+        const deletedRecord = records[index - 1];
+        records.splice(index - 1, 1);
+
+        // 保存更新后的记录
+        if (records.length === 0) {
+            await bucketDel(BUCKET_NAME, STORAGE_KEY);
+        } else {
+            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(records));
+        }
+
+        // 发送确认消息
+        const message = `✅ 已删除记录 [${index}]:\n${deletedRecord.time}\n\n剩余 ${records.length} 条记录`;
+        await sendMessage(message);
+
+    } catch (error) {
+        console.error("删除记录时出错:", error);
+        await sendMessage(`❌ 删除记录时出错: ${error.message}`);
+    }
+}
+
+/**
  * 清空记录
  */
 async function clearAllRecords() {
@@ -333,16 +435,18 @@ async function clearAllRecords() {
  */
 async function showHelp() {
     try {
-        let helpMessage = "📖 肚子疼记录插件使用说明 v1.2.0\n";
+        let helpMessage = "📖 肚子疼记录插件使用说明 v1.5.0\n";
         helpMessage += "━━━━━━━━━━━━━━━━━━\n\n";
         helpMessage += "🔹 发送「肚子疼」→ 自动记录时间\n";
-        helpMessage += "🔹 发送「肚子疼记录」→ 查看日历视图 🆕\n";
+        helpMessage += "🔹 发送「肚子疼记录」→ 查看时间轴视图\n";
+        helpMessage += "🔹 发送「肚子疼详细记录」→ 查看带编号的完整记录 🆕\n";
+        helpMessage += "🔹 发送「删除肚子疼记录 [编号]」→ 删除指定记录 🆕\n";
         helpMessage += "🔹 发送「清空肚子疼记录」→ 清空所有记录\n";
         helpMessage += "🔹 发送「肚子疼帮助」→ 显示此帮助\n\n";
-        helpMessage += "✨ 新功能: 日历视图\n";
-        helpMessage += "• 直观的月度日历展示\n";
-        helpMessage += "• 红点🔴标记有记录的日期\n";
-        helpMessage += "• 每日详细统计\n\n";
+        helpMessage += "✨ 新功能: 删除单条记录\n";
+        helpMessage += "• 发送「肚子疼详细记录」查看编号\n";
+        helpMessage += "• 发送「删除肚子疼记录 3」删除第3条\n";
+        helpMessage += "• 误操作可以精准撤销\n\n";
         helpMessage += "💡 提示: 每次记录都会自动保存,可随时查询历史数据";
 
         await sendMessage(helpMessage);
@@ -367,6 +471,18 @@ async function main() {
         if (content.indexOf("清空肚子疼记录") !== -1) {
             console.log("[肚子疼插件] 执行: 清空记录");
             await clearAllRecords();
+        } else if (content.indexOf("删除肚子疼记录") !== -1) {
+            console.log("[肚子疼插件] 执行: 删除指定记录");
+            // 提取编号
+            const match = content.match(/删除肚子疼记录\s+(\d+)/);
+            if (match && match[1]) {
+                await deleteRecordByIndex(match[1]);
+            } else {
+                await sendMessage("❌ 请指定要删除的记录编号\n例如: 删除肚子疼记录 3");
+            }
+        } else if (content.indexOf("肚子疼详细记录") !== -1) {
+            console.log("[肚子疼插件] 执行: 查看详细记录");
+            await showDetailedRecords();
         } else if (content.indexOf("肚子疼记录") !== -1) {
             console.log("[肚子疼插件] 执行: 查看记录");
             await showAllRecords();
