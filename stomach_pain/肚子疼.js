@@ -91,20 +91,28 @@ function getCurrentTime() {
  * 发送消息 - 兼容多种方式
  */
 async function sendMessage(text) {
-    // 尝试多种发送方式
-    if (typeof Sender !== 'undefined' && Sender && typeof Sender.reply === 'function') {
-        return Sender.reply(text);
+    try {
+        // 尝试多种发送方式
+        if (typeof Sender !== 'undefined' && Sender && typeof Sender.reply === 'function') {
+            await Sender.reply(text);
+            return;
+        }
+        if (this && this.Sender && typeof this.Sender.reply === 'function') {
+            await this.Sender.reply(text);
+            return;
+        }
+        if (typeof reply === 'function') {
+            await reply(text);
+            return;
+        }
+        if (typeof sendText === 'function') {
+            await sendText(text);
+            return;
+        }
+        console.log("[发送消息]", text);
+    } catch (error) {
+        console.error("[发送消息失败]", error);
     }
-    if (this && this.Sender && typeof this.Sender.reply === 'function') {
-        return this.Sender.reply(text);
-    }
-    if (typeof reply === 'function') {
-        return reply(text);
-    }
-    if (typeof sendText === 'function') {
-        return sendText(text);
-    }
-    console.log("[发送消息]", text);
 }
 
 /**
