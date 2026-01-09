@@ -30,12 +30,12 @@
  */
 
 // [disable:false]
-// [rule: (.*体重.*|.*目标.*|^[YyNnQq]$|^取消$|^退出$)]
+// [rule: (.*体重.*|.*目标.*)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: v1.1.7]
-// [update: 扩展协同检查以包含Y确认指令]
+// [version: v2.0.0]
+// [update: 移除rule中的单字母指令，彻底解决冲突]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
@@ -1077,19 +1077,6 @@ const BUCKET_NAME = "weight_tracker";
 
             // 1. 优先检查是否存在等待确认的操作
             const pendingStateStr = bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
-
-            // 协同检查：如果自己没有等待状态，但收到了单字母指令（Y/N/Q等），检查是否其他插件有等待状态
-            const isSingleLetterCommand = /^[YyNnQq]$/.test(content) || content === '取消' || content === '退出';
-            if ((!pendingStateStr || pendingStateStr === "null" || pendingStateStr === "") && isSingleLetterCommand) {
-                const otherBuckets = ["aoligei_pending_action", "stomach_pain_pending"];
-                for (const otherB of otherBuckets) {
-                    const otherState = bucketGet(otherB, PENDING_KEY);
-                    if (otherState && otherState !== "null" && otherState !== "") {
-                        console.log(`[体重记录插件] 检测到兄弟插件(${otherB})有活跃任务，静默退出`);
-                        return;
-                    }
-                }
-            }
 
             if (pendingStateStr && pendingStateStr !== "" && pendingStateStr !== "null") {
                 try {
