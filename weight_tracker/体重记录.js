@@ -35,9 +35,9 @@
 // [update: 重构为 input() 模式]
 
 // 定义存储桶名称
-const BUCKET_NAME = "weight_tracker";
 (function () {
-    // 放入 IIFE 防止变量冲突
+    // 定义存储桶名称 (放入 IIFE 防止与其他插件冲突)
+    const BUCKET_NAME = "weight_tracker";
 
     /**
      * 获取当前日期字符串 (YYYY-MM-DD)

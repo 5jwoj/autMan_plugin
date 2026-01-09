@@ -31,9 +31,9 @@
 // [update: 重构为 input() 模式]
 
 // 定义存储桶名称
-const BUCKET_NAME = "aoligei_record";
 (function () {
-    // 放入 IIFE 防止变量冲突
+    // 定义存储桶名称 (放入 IIFE 防止与其他插件冲突)
+    const BUCKET_NAME = "aoligei_record";
 
     /**
      * 获取当前时间字符串
