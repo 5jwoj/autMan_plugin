@@ -26,12 +26,12 @@
  */
 
 // [disable:false]
-// [rule: (.*肚子疼.*|^[YyNnQq]$)]
+// [rule: (.*肚子疼.*|^[YyNnQq]$|^取消$|^退出$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: v1.9.3]
-// [update: 修复超时后不执行当前指令的问题]
+// [version: v1.9.4]
+// [update: 添加"取消/退出"中文指令支持]
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
@@ -64,7 +64,7 @@ const BUCKET_NAME = "stomach_pain";
     function isQuitCommand(input) {
         if (!input) return false;
         const trimmed = input.trim().toLowerCase();
-        return trimmed === 'q' || trimmed === 'n';
+        return trimmed === 'q' || trimmed === 'n' || trimmed === '取消' || trimmed === '退出';
     }
 
     /**

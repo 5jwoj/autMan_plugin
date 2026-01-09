@@ -27,7 +27,7 @@
  */
 
 // [disable:false]
-// [rule: (.*奥力给.*|^[ABCabcYyNnQq]$)]
+// [rule: (.*奥力给.*|^[ABCabcYyNnQq]$|^取消$|^退出$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
@@ -47,7 +47,7 @@ const BUCKET_NAME = "aoligei_record";
     function isQuitCommand(input) {
         if (!input) return false;
         const trimmed = input.trim().toLowerCase();
-        return trimmed === 'q' || trimmed === 'n';
+        return trimmed === 'q' || trimmed === 'n' || trimmed === '取消' || trimmed === '退出';
     }
 
     /**
@@ -246,8 +246,7 @@ const BUCKET_NAME = "aoligei_record";
             // 获取记录数据
             const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
             if (!existingData) {
-                sendMessage("❌ 记录数据丢失");
-                return;
+                sendMessage(`❓ 记录值缺失\n请输入: 奥力给 [类型] [时间]\n示例: 奥力给 🟢 10:30\n\n(回复 Q 或 取消 可退出)`);
             }
 
             let data;
