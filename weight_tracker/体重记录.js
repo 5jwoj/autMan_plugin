@@ -33,7 +33,7 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.09.1]
+// [version: v1.1.1]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
