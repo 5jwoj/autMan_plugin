@@ -90,23 +90,23 @@ function getCurrentTime() {
 /**
  * 发送消息 - 兼容多种方式
  */
-async function sendMessage(text) {
+function sendMessage(text) {
     try {
-        // 尝试多种发送方式
+        // 尝试多种发送方式，直接调用不等待
         if (typeof Sender !== 'undefined' && Sender && typeof Sender.reply === 'function') {
-            await Sender.reply(text);
+            Sender.reply(text);
             return;
         }
         if (this && this.Sender && typeof this.Sender.reply === 'function') {
-            await this.Sender.reply(text);
+            this.Sender.reply(text);
             return;
         }
         if (typeof reply === 'function') {
-            await reply(text);
+            reply(text);
             return;
         }
         if (typeof sendText === 'function') {
-            await sendText(text);
+            sendText(text);
             return;
         }
         console.log("[发送消息]", text);
