@@ -30,12 +30,12 @@
  */
 
 // [disable:false]
-// [rule: (.*体重.*|.*目标.*|^[Yy]$)]
+// [rule: (.*体重.*|.*目标.*|^[YyNnQq]$|^取消$|^退出$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: v1.1.5]
-// [update: 移除Q/取消触发规则，交由全局管理]
+// [version: v1.1.6]
+// [update: 恢复独立Q监听，添加防冲突协同逻辑]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
@@ -1077,6 +1077,19 @@ const BUCKET_NAME = "weight_tracker";
 
             // 1. 优先检查是否存在等待确认的操作
             const pendingStateStr = bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
+
+            // 协同检查
+            if ((!pendingStateStr || pendingStateStr === "null" || pendingStateStr === "") && isQuitCommand(content)) {
+                const otherBuckets = ["aoligei_pending_action", "stomach_pain_pending"];
+                for (const otherB of otherBuckets) {
+                    const otherState = bucketGet(otherB, PENDING_KEY);
+                    if (otherState && otherState !== "null" && otherState !== "") {
+                        console.log(`[体重记录插件] 检测到兄弟插件(${otherB})有活跃任务，静默退出`);
+                        return;
+                    }
+                }
+            }
+
             if (pendingStateStr && pendingStateStr !== "" && pendingStateStr !== "null") {
                 try {
                     const pendingAction = JSON.parse(pendingStateStr);
