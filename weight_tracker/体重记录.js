@@ -19,7 +19,7 @@
  * 交互说明:
  * - 关键操作需要回复 Y/y 确认
  * - 回复 Q/q 或 N/n 取消操作
- * - 60秒无操作自动退出
+ * - 30秒无操作自动退出
  * 
  * 更新历史:
  * v1.1.0 - 全面添加交互式确认机制
@@ -194,7 +194,7 @@ async function requestRecordConfirmation(weight, date) {
         await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`📝 准备记录 ${userName} 在 ${recordDate} 的体重: ${weightValue}kg\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+        await sendMessage(`📝 准备记录 ${userName} 在 ${recordDate} 的体重: ${weightValue}kg\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求记录确认时出错:", error);
@@ -500,7 +500,7 @@ async function showDetailedRecords() {
         });
 
         message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-        message += "💡 (60秒内) 发送数字编号可快速删除\n";
+        message += "💡 (30秒内) 发送数字编号可快速删除\n";
         message += "例如: 直接发送 3 即可删除第3条\n";
         message += "或使用「修改体重记录 [编号] [新数值]」修改";
 
@@ -543,7 +543,7 @@ async function requestSetTargetConfirmation(target) {
         };
         await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
-        await sendMessage(`🎯 准备设置目标体重为: ${targetValue}kg\n\n确认设置请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+        await sendMessage(`🎯 准备设置目标体重为: ${targetValue}kg\n\n确认设置请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求设置目标确认时出错:", error);
@@ -710,7 +710,7 @@ async function requestDeleteConfirmation(indexStr) {
         await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.date}  ${targetRecord.weight}kg\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+        await sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.date}  ${targetRecord.weight}kg\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求删除确认时出错:", error);
@@ -838,7 +838,7 @@ async function requestModifyConfirmation(indexStr, newWeight) {
         await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`✏️ 准备修改记录 [${index}]:\n${targetRecord.date}\n${targetRecord.weight}kg → ${newWeightValue}kg\n\n确认修改请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+        await sendMessage(`✏️ 准备修改记录 [${index}]:\n${targetRecord.date}\n${targetRecord.weight}kg → ${newWeightValue}kg\n\n确认修改请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求修改确认时出错:", error);
@@ -945,7 +945,7 @@ async function requestClearConfirmation() {
         if (data.target) {
             message += `\n(目标体重 ${data.target}kg 将被保留)`;
         }
-        message += `\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`;
+        message += `\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`;
 
         await sendMessage(message);
 
@@ -1038,7 +1038,7 @@ async function showHelp() {
         helpMessage += "⚙️ 交互说明\n";
         helpMessage += "• 关键操作需要回复 Y 确认\n";
         helpMessage += "• 回复 Q 或 N 取消操作\n";
-        helpMessage += "• 60秒无操作自动退出\n\n";
+        helpMessage += "• 30秒无操作自动退出\n\n";
 
         helpMessage += "💡 小技巧\n";
         helpMessage += "• 查看详细记录后可直接发送数字删除";
@@ -1069,10 +1069,11 @@ async function main() {
                 const pendingAction = JSON.parse(pendingStateStr);
                 const now = new Date().getTime();
 
-                // 检查是否超时 (60秒)
-                if (now - pendingAction.timestamp > 60000) {
+                // 检查是否超时 (30秒)
+                if (now - pendingAction.timestamp > 30000) {
                     console.log("[体重记录插件] 等待操作已超时，清除状态");
                     await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                    return; // 超时后直接退出，不处理当前输入
                 } else {
                     if (pendingAction.action === 'view_details') {
                         // 在详情浏览模式下，检查是否输入了数字

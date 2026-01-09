@@ -15,7 +15,7 @@
  * - 确认操作时回复 Y/y 执行
  * - 回复 Q/q 或 N/n 取消操作
  * - 记录后需按提示选择 A/B/C 类型
- * - 超时60秒自动退出
+ * - 超时30秒自动退出
  * 
  * 更新历史:
  * v1.7.0 - 添加交互式确认机制,支持回复Q退出
@@ -157,7 +157,7 @@ async function requestRecordConfirmation() {
         await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`📝 准备记录 ${userName} 的拉屎时间:\n${currentTime}\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+        await sendMessage(`📝 准备记录 ${userName} 的拉屎时间:\n${currentTime}\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求记录确认时出错:", error);
@@ -465,7 +465,7 @@ async function showDetailedRecords() {
         });
 
         message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-        message += "💡 (60秒内) 发送数字编号可快速删除\n";
+        message += "💡 (30秒内) 发送数字编号可快速删除\n";
         message += "例如: 直接发送 2 即可删除第2条";
 
         await sendMessage(message);
@@ -537,7 +537,7 @@ async function requestDeleteConfirmation(indexStr) {
         await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.time}\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+        await sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.time}\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求删除确认时出错:", error);
@@ -639,7 +639,7 @@ async function requestClearConfirmation() {
         await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`⚠️ 确定要清空所有 ${count} 条奥力给记录吗？\n\n此操作不可恢复!\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+        await sendMessage(`⚠️ 确定要清空所有 ${count} 条奥力给记录吗？\n\n此操作不可恢复!\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求清空确认时出错:", error);
@@ -723,10 +723,11 @@ async function main() {
                 const pendingAction = JSON.parse(pendingStateStr);
                 const now = new Date().getTime();
 
-                // 检查是否超时 (60秒)
-                if (now - pendingAction.timestamp > 60000) {
+                // 检查是否超时 (30秒)
+                if (now - pendingAction.timestamp > 30000) {
                     console.log("[奥力给插件] 等待操作已超时，清除状态");
                     await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                    return; // 超时后直接退出，不处理当前输入
                 } else {
                     // 分流处理不同类型的等待状态
                     if (pendingAction.action === 'view_details') {
