@@ -27,12 +27,12 @@
  */
 
 // [disable:false]
-// [rule: (.*奥力给.*|^[ABCabcYyNnQq]$|^取消$|^退出$)]
+// [rule: (.*奥力给.*|^[ABCabcYy]$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: v1.7.3]
-// [update: 修复超时后不执行当前指令的问题]
+// [version: v1.7.4]
+// [update: 移除Q/取消触发规则，交由全局管理]
 
 // 定义存储桶名称
 const BUCKET_NAME = "aoligei_record";

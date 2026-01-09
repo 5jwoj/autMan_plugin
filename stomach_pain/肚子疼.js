@@ -26,12 +26,12 @@
  */
 
 // [disable:false]
-// [rule: (.*肚子疼.*|^[YyNnQq]$|^取消$|^退出$)]
+// [rule: (.*肚子疼.*|^[Yy]$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
 // [version: v1.9.4]
-// [update: 添加"取消/退出"中文指令支持]
+// [update: 移除Q/取消触发规则，交由全局管理]
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
