@@ -2,14 +2,14 @@
 # [rule: ^肚子疼(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.2.0]
+# [version: 1.2.1]
 
 """
 autMan 插件 - 肚子疼记录（Python 版本）
 
 功能：记录、查看和删除肚子疼事件
 作者：AI Assistant
-版本：v1.2.0
+版本：v1.2.1
 日期：2026-01-09
 
 使用说明：
@@ -26,7 +26,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "stomachache"
-VERSION = "v1.2.0"
+VERSION = "v1.2.1"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -236,9 +236,14 @@ class StomachachePlugin:
             # 提取日期部分（YYYY-MM-DD）
             date_str = record['datetime'].split(' ')[0]
             time_str = record['datetime'].split(' ')[1][:5]  # HH:MM
+            
+            # 获取地点信息（兼容旧记录）
+            location_desc = record.get('location_desc', '')
+            
             records_by_date[date_str].append({
                 'time': time_str,
-                'timestamp': record['timestamp']
+                'timestamp': record['timestamp'],
+                'location': location_desc  # 添加地点信息
             })
         
         # 计算统计信息
@@ -282,12 +287,17 @@ class StomachachePlugin:
             
             message += f"🗓️ {month_day} {color_mark}\n"
             
-            # 显示当天的时间记录
-            times = sorted([r['time'] for r in day_records])
-            for time in times:
-                message += f"  └─ {time}\n"
+            # 显示当天的时间记录（包含地点）
+            for record in day_records:
+                time_str = record['time']
+                location = record.get('location', '')
+                
+                if location:
+                    message += f"  └─ {time_str} 📍 {location}\n"
+                else:
+                    message += f"  └─ {time_str}\n"
             
-            message += f"  � 当天{day_count}次\n\n"
+            message += f"  📊 当天{day_count}次\n\n"
         
         # 如果记录超过10天，显示提示
         if len(records_by_date) > 10:
