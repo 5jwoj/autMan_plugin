@@ -2,14 +2,14 @@
 # [rule: ^肚子疼(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.1.0]
+# [version: 1.2.0]
 
 """
 autMan 插件 - 肚子疼记录（Python 版本）
 
 功能：记录、查看和删除肚子疼事件
 作者：AI Assistant
-版本：v1.1.0
+版本：v1.2.0
 日期：2026-01-09
 
 使用说明：
@@ -26,7 +26,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "stomachache"
-VERSION = "v1.1.0"
+VERSION = "v1.2.0"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -131,7 +131,7 @@ class StomachachePlugin:
     
     def record_stomachache(self):
         """记录肚子疼事件"""
-        # 获取确认
+        # 第一步：获取确认
         confirmation = self.get_user_confirmation("📝 确认要记录一次肚子疼事件吗？")
         
         if not confirmation:
@@ -146,6 +146,53 @@ class StomachachePlugin:
             return
         
         if confirmation == "y":
+            # 第二步：询问地点
+            self.sender.reply("📍 请选择疼痛发生的地点：\n\n  A - 爷爷奶奶家 🏠\n  B - 爸爸妈妈家 🏡\n  C - 车上 🚗\n  D - 其它\n  q - 退出")
+            
+            location_input = self.sender.listen(INPUT_TIMEOUT)
+            
+            if location_input is None:
+                self.sender.reply("⏱️ 操作超时，已自动取消")
+                return
+            
+            location = location_input.strip().upper()
+            
+            if location == "Q":
+                self.sender.reply("👋 已退出记录流程")
+                return
+            
+            # 验证输入
+            if location not in ["A", "B", "C", "D"]:
+                self.sender.reply("❌ 无效的选项，请输入 A、B、C 或 D")
+                return
+            
+            # 处理地点
+            if location == "D":
+                # 用户选择"其它"，需要输入自定义地点
+                self.sender.reply("📝 请输入具体地点：")
+                
+                custom_location_input = self.sender.listen(INPUT_TIMEOUT)
+                
+                if custom_location_input is None:
+                    self.sender.reply("⏱️ 操作超时，已自动取消")
+                    return
+                
+                custom_location = custom_location_input.strip()
+                
+                if not custom_location or custom_location.lower() == "q":
+                    self.sender.reply("👋 已退出记录流程")
+                    return
+                
+                location_desc = custom_location
+            else:
+                # 使用预设地点
+                location_map = {
+                    "A": "爷爷奶奶家 🏠",
+                    "B": "爸爸妈妈家 🏡",
+                    "C": "车上 🚗"
+                }
+                location_desc = location_map[location]
+            
             # 生成记录数据
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             timestamp = self.get_current_timestamp()
@@ -155,7 +202,9 @@ class StomachachePlugin:
                 "userid": self.user_id,
                 "datetime": current_time,
                 "timestamp": timestamp,
-                "imtype": self.imtype
+                "imtype": self.imtype,
+                "location": location,  # 添加地点选项
+                "location_desc": location_desc  # 添加地点描述
             }
             
             # 获取现有记录
@@ -165,7 +214,7 @@ class StomachachePlugin:
             # 保存记录
             self.save_user_records(records)
             
-            self.sender.reply(f"✅ 记录成功！\n\n📅 时间：{current_time}\n\n💡 发送「肚子疼记录」可查看所有记录")
+            self.sender.reply(f"✅ 记录成功！\n\n📅 时间：{current_time}\n📍 地点：{location_desc}\n\n💡 发送「肚子疼记录」可查看所有记录")
             return
         
         # 无效输入
