@@ -1,33 +1,58 @@
 /**
- * 奥力给记录插件 v1.6.3
+ * 奥力给记录插件 v1.7.0
  * 基于autMan实际API结构开发
  * 功能: 自动记录每次拉屎的时间,并支持查询历史记录
  * 
  * 使用说明:
- * - 发送「奥力给」→ 自动记录拉屎时间
+ * - 发送「奥力给」→ 自动记录拉屎时间(需确认)
  * - 发送「奥力给记录」→ 查看时间轴视图
  * - 发送「奥力给详细记录」→ 查看带编号的完整记录
- * - 发送「删除奥力给记录 [编号]」→ 删除指定编号的记录
- * - 发送「清空奥力给记录」→ 清空所有记录
+ * - 发送「删除奥力给记录 [编号]」→ 删除指定编号的记录(需确认)
+ * - 发送「清空奥力给记录」→ 清空所有记录(需确认)
  * - 发送「奥力给帮助」→ 显示帮助
  * 
+ * 交互说明:
+ * - 确认操作时回复 Y/y 执行
+ * - 回复 Q/q 或 N/n 取消操作
+ * - 记录后需按提示选择 A/B/C 类型
+ * - 超时60秒自动退出
+ * 
  * 更新历史:
- * v1.6.3 - 修复rule正则表达式双重转义问题,解决关键词触发失败
+ * v1.7.0 - 添加交互式确认机制,支持回复Q退出
+ * v1.6.3 - 修复rule正则表达式双重转义问题
  * v1.6.2 - 修复规则正则表达式转义问题
  * v1.6.1 - 在记录视图中显示类型信息
- * v1.0.0 - 初始版本,采用时间轴视图,支持智能分页
+ * v1.0.0 - 初始版本
  */
 
 // [disable:false]
-// [rule: (.*奥力给.*|^\d+$|^[ABCabc]$)]
+// [rule: (.*奥力给.*|^\\d+$|^[ABCabcYyNnQq]$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: 2026.01.06.01]
+// [version: 2026.01.09.1]
 
 // 定义存储桶名称
 const BUCKET_NAME = "aoligei_record";
-const PENDING_TYPE_BUCKET = "aoligei_pending_type"; // 等待类型选择的状态
+const PENDING_ACTION_BUCKET = "aoligei_pending_action"; // 统一等待状态
+
+/**
+ * 检查用户输入是否为退出指令
+ */
+function isQuitCommand(input) {
+    if (!input) return false;
+    const trimmed = input.trim().toLowerCase();
+    return trimmed === 'q' || trimmed === 'n';
+}
+
+/**
+ * 检查用户输入是否为确认指令
+ */
+function isConfirmCommand(input) {
+    if (!input) return false;
+    const trimmed = input.trim().toLowerCase();
+    return trimmed === 'y';
+}
 
 /**
  * 获取当前时间字符串
@@ -113,16 +138,41 @@ function getUserName() {
 }
 
 /**
- * 记录拉屎时间
+ * 请求确认记录（第一阶段）
  */
-async function recordPoopTime() {
+async function requestRecordConfirmation() {
     try {
         const currentTime = getCurrentTime();
         const userID = getUserID();
         const userName = getUserName();
+        const PENDING_KEY = `user_${userID}`;
 
-        // 定义存储键
+        // 保存等待状态
+        const pendingAction = {
+            action: 'record',
+            time: currentTime,
+            userName: userName,
+            timestamp: new Date().getTime()
+        };
+        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+
+        // 发送确认提示
+        await sendMessage(`📝 准备记录 ${userName} 的拉屎时间:\n${currentTime}\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+
+    } catch (error) {
+        console.error("请求记录确认时出错:", error);
+        await sendMessage(`❌ 请求记录确认时出错: ${error.message}`);
+    }
+}
+
+/**
+ * 执行记录并进入类型选择（第二阶段）
+ */
+async function executeRecordPoopTime(pendingAction) {
+    try {
+        const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
+        const PENDING_KEY = `user_${userID}`; // 复用 pending key
 
         // 获取已有数据
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
@@ -131,7 +181,6 @@ async function recordPoopTime() {
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 const parsed = JSON.parse(existingData);
-                // 兼容旧数据格式（数组）
                 if (Array.isArray(parsed)) {
                     data.records = parsed;
                 } else {
@@ -146,22 +195,24 @@ async function recordPoopTime() {
 
         // 添加新记录
         data.records.push({
-            time: currentTime,
-            timestamp: new Date().getTime(),
+            time: pendingAction.time,
+            timestamp: pendingAction.timestamp,
             type: null  // 类型将在用户选择后更新
         });
 
         // 保存数据
         await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
-        // 设置等待类型选择状态
-        await bucketSet(PENDING_TYPE_BUCKET, STORAGE_KEY, JSON.stringify({
+        // 设置等待类型选择状态 (使用统一 Bucket，但 action 为 select_type)
+        const nextPendingAction = {
+            action: 'select_type',
             recordIndex: data.records.length - 1,
             timestamp: new Date().getTime()
-        }));
+        };
+        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(nextPendingAction));
 
         // 发送确认消息和选项
-        const message = `✅ 奥力给! 已记录 ${userName} 的拉屎时间:\n${currentTime}\n\n💩 请选择类型：\nA - 通畅\nB - 费劲\nC - 拉稀\n\n直接发送 A、B 或 C 即可`;
+        const message = `✅ 奥力给! 已记录 ${pendingAction.userName} 的拉屎时间:\n${pendingAction.time}\n\n💩 请选择类型：\nA - 通畅\nB - 费劲\nC - 拉稀\n\n直接发送 A、B 或 C 即可\n(回复 Q 跳过选择)`;
         await sendMessage(message);
 
     } catch (error) {
@@ -170,23 +221,14 @@ async function recordPoopTime() {
     }
 }
 
-
 /**
- * 处理类型选择
+ * 执行类型选择处理（第三阶段）
  */
-async function handleTypeSelection(typeChoice) {
+async function executeTypeSelection(typeChoice, pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
-
-        // 获取等待状态
-        const pendingStateStr = await bucketGet(PENDING_TYPE_BUCKET, STORAGE_KEY);
-        if (!pendingStateStr || pendingStateStr === "" || pendingStateStr === "null") {
-            await sendMessage("❌ 没有待选择类型的记录\n请先发送「奥力给」记录时间");
-            return;
-        }
-
-        const pendingState = JSON.parse(pendingStateStr);
+        const PENDING_KEY = `user_${userID}`; // 复用 pending key
 
         // 获取记录数据
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
@@ -209,7 +251,7 @@ async function handleTypeSelection(typeChoice) {
         }
 
         // 更新记录类型
-        const recordIndex = pendingState.recordIndex;
+        const recordIndex = pendingAction.recordIndex;
         if (recordIndex >= 0 && recordIndex < data.records.length) {
             const typeName = typeChoice === 'A' ? '通畅' : (typeChoice === 'B' ? '费劲' : '拉稀');
             data.records[recordIndex].type = typeChoice;
@@ -218,11 +260,12 @@ async function handleTypeSelection(typeChoice) {
             await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
             // 清除等待状态
-            await bucketDel(PENDING_TYPE_BUCKET, STORAGE_KEY);
+            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
 
             await sendMessage(`✅ 已设置类型为: ${typeChoice} - ${typeName}`);
         } else {
-            await sendMessage("❌ 记录索引无效");
+            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+            await sendMessage("❌ 记录索引无效，操作已过期");
         }
 
     } catch (error) {
@@ -422,10 +465,18 @@ async function showDetailedRecords() {
         });
 
         message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-        message += "💡 现在可以直接发送编号删除记录\n";
+        message += "💡 (60秒内) 发送数字编号可快速删除\n";
         message += "例如: 直接发送 2 即可删除第2条";
 
         await sendMessage(message);
+
+        // 设置 "查看详情" 状态，允许后续输入数字删除
+        const PENDING_KEY = `user_${userID}`;
+        const pendingAction = {
+            action: 'view_details',
+            timestamp: new Date().getTime()
+        };
+        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
     } catch (error) {
         console.error("查询详细记录时出错:", error);
@@ -435,12 +486,13 @@ async function showDetailedRecords() {
 
 
 /**
- * 根据编号删除记录
+ * 请求确认删除记录
  */
-async function deleteRecordByIndex(indexStr) {
+async function requestDeleteConfirmation(indexStr) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
+        const PENDING_KEY = `user_${userID}`;
 
         // 获取已有数据
         const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
@@ -450,7 +502,6 @@ async function deleteRecordByIndex(indexStr) {
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 const parsed = JSON.parse(existingData);
-                // 兼容旧数据格式
                 if (Array.isArray(parsed)) {
                     data = { records: parsed };
                     records = parsed;
@@ -471,6 +522,61 @@ async function deleteRecordByIndex(indexStr) {
         const index = parseInt(indexStr);
         if (isNaN(index) || index < 1 || index > records.length) {
             await sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「奥力给详细记录」查看有效编号`);
+            return;
+        }
+
+        const targetRecord = records[index - 1];
+
+        // 保存等待状态
+        const pendingAction = {
+            action: 'delete',
+            index: index,
+            record: targetRecord,
+            timestamp: new Date().getTime()
+        };
+        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+
+        // 发送确认提示
+        await sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.time}\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+
+    } catch (error) {
+        console.error("请求删除确认时出错:", error);
+        await sendMessage(`❌ 请求删除确认时出错: ${error.message}`);
+    }
+}
+
+/**
+ * 执行删除记录
+ */
+async function executeDeleteRecord(pendingAction) {
+    try {
+        const userID = getUserID();
+        const STORAGE_KEY = `user_${userID}`;
+
+        // 获取已有数据
+        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        let data;
+        let records = [];
+
+        if (existingData && existingData !== "" && existingData !== "null") {
+            try {
+                const parsed = JSON.parse(existingData);
+                if (Array.isArray(parsed)) {
+                    data = { records: parsed };
+                    records = parsed;
+                } else {
+                    data = parsed;
+                    records = data.records || [];
+                }
+            } catch (e) {
+                await sendMessage("❌ 记录数据格式错误");
+                return;
+            }
+        }
+
+        const index = pendingAction.index;
+        if (index < 1 || index > records.length) {
+            await sendMessage(`❌ 记录已变化,请重新操作`);
             return;
         }
 
@@ -497,35 +603,70 @@ async function deleteRecordByIndex(indexStr) {
 }
 
 /**
- * 清空记录
+ * 请求确认清空记录
  */
-async function clearAllRecords() {
+async function requestClearConfirmation() {
+    try {
+        const userID = getUserID();
+        const STORAGE_KEY = `user_${userID}`;
+        const PENDING_KEY = `user_${userID}`;
+
+        // 检查是否有数据
+        const beforeDelete = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+
+        if (!beforeDelete || beforeDelete === "" || beforeDelete === "null") {
+            await sendMessage("📋 暂无记录可清空");
+            return;
+        }
+
+        let count = 0;
+        try {
+            const parsed = JSON.parse(beforeDelete);
+            count = Array.isArray(parsed) ? parsed.length : (parsed.records ? parsed.records.length : 0);
+        } catch (e) { }
+
+        if (count === 0) {
+            await sendMessage("📋 暂无记录可清空");
+            return;
+        }
+
+        // 保存等待状态
+        const pendingAction = {
+            action: 'clear',
+            count: count,
+            timestamp: new Date().getTime()
+        };
+        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+
+        // 发送确认提示
+        await sendMessage(`⚠️ 确定要清空所有 ${count} 条奥力给记录吗？\n\n此操作不可恢复!\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(60秒内有效)`);
+
+    } catch (error) {
+        console.error("请求清空确认时出错:", error);
+        await sendMessage(`❌ 请求清空确认时出错: ${error.message}`);
+    }
+}
+
+/**
+ * 执行清空记录
+ */
+async function executeClearAllRecords() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        console.log(`[清空记录] 用户ID: ${userID}, 存储键: ${STORAGE_KEY}`);
-
-        // 删除前先检查是否有数据
-        const beforeDelete = await bucketGet(BUCKET_NAME, STORAGE_KEY);
-        console.log(`[清空记录] 删除前的数据: ${beforeDelete}`);
-
         // 执行删除
         const delResult = await bucketDel(BUCKET_NAME, STORAGE_KEY);
-        console.log(`[清空记录] bucketDel返回值: ${delResult}`);
 
         // 删除后验证
         const afterDelete = await bucketGet(BUCKET_NAME, STORAGE_KEY);
-        console.log(`[清空记录] 删除后的数据: ${afterDelete}`);
 
         // 如果删除后仍有数据,尝试设置为空
         if (afterDelete && afterDelete !== "" && afterDelete !== "null") {
-            console.log(`[清空记录] 数据未删除,尝试设置为空`);
             await bucketSet(BUCKET_NAME, STORAGE_KEY, "");
-            await sendMessage("🗑️ 已清空所有奥力给记录 (使用清空方式)");
-        } else {
-            await sendMessage("🗑️ 已清空所有奥力给记录");
         }
+
+        await sendMessage("🗑️ 已清空所有奥力给记录");
 
     } catch (error) {
         console.error("清空记录时出错:", error);
@@ -538,19 +679,22 @@ async function clearAllRecords() {
  */
 async function showHelp() {
     try {
-        let helpMessage = "📖 奥力给记录插件使用说明 v1.1.0\n";
+        let helpMessage = "📖 奥力给记录插件使用说明 v1.7.0\n";
         helpMessage += "━━━━━━━━━━━━━━━━━━\n\n";
-        helpMessage += "🔹 发送「奥力给」→ 自动记录拉屎时间\n";
+        helpMessage += "🔹 发送「奥力给」→ 自动记录拉屎时间(需确认)\n";
         helpMessage += "🔹 发送「奥力给记录」→ 查看时间轴视图\n";
-        helpMessage += "🔹 发送「奥力给详细记录」→ 查看带编号的完整记录 🆕\n";
-        helpMessage += "🔹 发送「删除奥力给记录 [编号]」→ 删除指定记录 🆕\n";
-        helpMessage += "🔹 发送「清空奥力给记录」→ 清空所有记录\n";
+        helpMessage += "🔹 发送「奥力给详细记录」→ 查看带编号的完整记录\n";
+        helpMessage += "🔹 发送「删除奥力给记录 [编号]」→ 删除指定记录(需确认)\n";
+        helpMessage += "🔹 发送「清空奥力给记录」→ 清空所有记录(需确认)\n";
         helpMessage += "🔹 发送「奥力给帮助」→ 显示此帮助\n\n";
-        helpMessage += "✨ 新功能: 删除单条记录\n";
-        helpMessage += "• 发送「奥力给详细记录」查看编号\n";
-        helpMessage += "• 发送「删除奥力给记录 3」删除第3条\n";
-        helpMessage += "• 误操作可以精准撤销\n\n";
-        helpMessage += "💡 提示: 每次记录都会自动保存,可随时查询历史数据";
+        helpMessage += "⚙️ 交互说明:\n";
+        helpMessage += "• 关键操作需要二次确认 (回复 Y 执行)\n";
+        helpMessage += "• 记录后需选择类型 (回复 A/B/C)\n";
+        helpMessage += "• 回复 Q 或 N 取消操作\n\n";
+        helpMessage += "✨ 快捷操作:\n";
+        helpMessage += "• 查看详细记录后\n";
+        helpMessage += "• 直接发送数字可删除对应记录\n";
+        helpMessage += "• 误操作可以精准撤销";
 
         await sendMessage(helpMessage);
 
@@ -568,36 +712,100 @@ async function main() {
         // 获取消息内容
         const content = getMessageContent().trim();
         const userID = getUserID();
+        const PENDING_KEY = `user_${userID}`;
 
         console.log(`[奥力给插件] 收到消息: [${content}]`);
 
-        // 检查是否是A/B/C类型选择
-        const typeMatch = content.match(/^([ABC])$/i);
-        if (typeMatch) {
-            const typeChoice = typeMatch[1].toUpperCase();
-            console.log(`[奥力给插件] 检测到类型选择: ${typeChoice}`);
-            await handleTypeSelection(typeChoice);
-            return;
+        // 1. 优先检查是否存在等待确认的操作
+        const pendingStateStr = await bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
+        if (pendingStateStr && pendingStateStr !== "" && pendingStateStr !== "null") {
+            try {
+                const pendingAction = JSON.parse(pendingStateStr);
+                const now = new Date().getTime();
+
+                // 检查是否超时 (60秒)
+                if (now - pendingAction.timestamp > 60000) {
+                    console.log("[奥力给插件] 等待操作已超时，清除状态");
+                    await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                } else {
+                    // 分流处理不同类型的等待状态
+                    if (pendingAction.action === 'view_details') {
+                        // 在详情浏览模式下，检查是否输入了数字
+                        const isPureNumber = /^\d+$/.test(content);
+                        if (isPureNumber) {
+                            console.log(`[奥力给插件] 详情浏览模式下检测到数字: ${content}，请求删除确认`);
+                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 清除 view_details
+                            await requestDeleteConfirmation(content); // 进入删除确认流程
+                            return;
+                        } else {
+                            // 输入非数字，视为退出详情模式，继续匹配其他指令
+                            console.log(`[奥力给插件] 详情浏览模式下输入非数字，清除状态并继续`);
+                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            // 注意：这里不 return，让代码继续向下匹配常规指令
+                        }
+                    } else if (pendingAction.action === 'select_type') {
+                        // 处理类型选择 (A/B/C)
+                        const typeMatch = content.match(/^([ABCabc])$/i);
+                        if (typeMatch) {
+                            const typeChoice = typeMatch[1].toUpperCase();
+                            console.log(`[奥力给插件] 用户选择类型: ${typeChoice}`);
+                            await executeTypeSelection(typeChoice, pendingAction);
+                            return;
+                        } else if (isQuitCommand(content)) {
+                            console.log(`[奥力给插件] 用户跳过类型选择`);
+                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            await sendMessage("已跳过类型选择");
+                            return;
+                        }
+                        // 其他输入不处理，或提示无效
+                    } else {
+                        // 处理确认操作 (Y/N/Q)
+                        if (isConfirmCommand(content)) {
+                            // 用户确认执行
+                            console.log(`[奥力给插件] 用户确认执行操作: ${pendingAction.action}`);
+                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 先清除状态
+
+                            if (pendingAction.action === 'record') {
+                                await executeRecordPoopTime(pendingAction);
+                            } else if (pendingAction.action === 'delete') {
+                                await executeDeleteRecord(pendingAction);
+                            } else if (pendingAction.action === 'clear') {
+                                await executeClearAllRecords();
+                            }
+                            return; // 处理完毕，退出
+
+                        } else if (isQuitCommand(content)) {
+                            // 用户取消
+                            console.log(`[奥力给插件] 用户取消操作: ${pendingAction.action}`);
+                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            await sendMessage("已退出操作");
+                            return; // 处理完毕，退出
+                        } else {
+                            // 输入其他指令，清除等待状态
+                            console.log("[奥力给插件] 用户输入非确认指令，清除等待状态");
+                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("解析等待状态失败:", e);
+                await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+            }
         }
 
-        // 检查是否是纯数字（智能删除）
-        const isPureNumber = /^\d+$/.test(content);
-        if (isPureNumber) {
-            console.log(`[奥力给插件] 检测到纯数字输入: ${content}，尝试删除该编号记录`);
-            await deleteRecordByIndex(content);
-            return;
-        }
+        // 2. 常规命令匹配
+        // (已移除原有的直接纯数字匹配逻辑，改为依赖 view_details 状态)
 
         // 检查是否包含关键词(按长度从长到短匹配)
         if (content.indexOf("清空奥力给记录") !== -1) {
-            console.log("[奥力给插件] 执行: 清空记录");
-            await clearAllRecords();
+            console.log("[奥力给插件] 执行: 请求清空确认");
+            await requestClearConfirmation();
         } else if (content.indexOf("删除奥力给记录") !== -1) {
-            console.log("[奥力给插件] 执行: 删除指定记录");
+            console.log("[奥力给插件] 执行: 请求删除确认");
             // 提取编号
             const match = content.match(/删除奥力给记录\s+(\d+)/);
             if (match && match[1]) {
-                await deleteRecordByIndex(match[1]);
+                await requestDeleteConfirmation(match[1]);
             } else {
                 // 没有编号时，自动显示详细记录
                 console.log("[奥力给插件] 未提供编号，显示详细记录");
@@ -611,10 +819,14 @@ async function main() {
             await showAllRecords();
         } else if (content.indexOf("奥力给帮助") !== -1) {
             console.log("[奥力给插件] 执行: 显示帮助");
+            // 注意：因为函数签名未变，这里可以直接调用已有的 showHelp，但建议稍后更新 showHelp 的文本说明
             await showHelp();
         } else if (content.indexOf("奥力给") !== -1) {
-            console.log("[奥力给插件] 执行: 记录时间");
-            await recordPoopTime();
+            // 同样的，确保不是 Y/N/Q/A/B/C 防止误触（从逻辑上说 pending 检查在前所以安全）
+            if (!isConfirmCommand(content) && !isQuitCommand(content) && !content.match(/^[ABCabc]$/i)) {
+                console.log("[奥力给插件] 执行: 请求记录确认");
+                await requestRecordConfirmation();
+            }
         }
 
     } catch (error) {
