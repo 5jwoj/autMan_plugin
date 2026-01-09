@@ -34,8 +34,8 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: v1.1.2]
-// [update: 修复变量冲突(IIFE)及同步调用错误]
+// [version: v1.1.3]
+// [update: 修复超时后不执行当前指令的问题]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
@@ -1086,7 +1086,7 @@ const BUCKET_NAME = "weight_tracker";
                     if (now - pendingAction.timestamp > 30000) {
                         console.log("[体重记录插件] 等待操作已超时，清除状态");
                         bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
-                        return; // 超时后直接退出，不处理当前输入
+                        // 超时后不返回，允许继续匹配常规指令
                     } else {
                         if (pendingAction.action === 'view_details') {
                             // 在详情浏览模式下，检查是否输入了数字
