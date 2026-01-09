@@ -654,10 +654,15 @@ async function main() {
                             await requestDeleteConfirmation(content); // 进入删除确认流程
                             return;
                         } else {
-                            // 输入非数字，视为退出详情模式，继续匹配其他指令
+                            // 输入非数字，视为退出详情模式
                             console.log(`[肚子疼插件] 详情浏览模式下输入非数字，清除状态并继续`);
                             await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
-                            // 注意：这里不 return，让代码继续向下匹配常规指令
+                            // 如果是Q/N，给予明确的退出提示
+                            if (isQuitCommand(content)) {
+                                await sendMessage("✅ 已退出详情浏览模式");
+                                return;
+                            }
+                            // 其他输入继续向下匹配常规指令
                         }
                     } else {
                         // 检查用户输入
