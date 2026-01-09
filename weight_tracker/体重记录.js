@@ -29,7 +29,7 @@
  */
 
 // [disable:false]
-// [rule: (.*体重.*|.*目标.*|^\\d+$|^[YyNnQq]$)]
+// [rule: (.*体重.*|.*目标.*|^[YyNnQq]$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]

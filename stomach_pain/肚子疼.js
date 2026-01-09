@@ -25,7 +25,7 @@
  */
 
 // [disable:false]
-// [rule: (.*肚子疼.*|^\d+$|^[YyNnQq]$)]
+// [rule: (.*肚子疼.*|^[YyNnQq]$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]

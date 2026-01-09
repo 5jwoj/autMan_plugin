@@ -26,7 +26,7 @@
  */
 
 // [disable:false]
-// [rule: (.*奥力给.*|^\\d+$|^[ABCabcYyNnQq]$)]
+// [rule: (.*奥力给.*|^[ABCabcYyNnQq]$)]
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
