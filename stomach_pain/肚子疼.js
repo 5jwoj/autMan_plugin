@@ -30,8 +30,8 @@
 // [admin: false] 
 // [service: 88489948]
 // [price: 0.00]
-// [version: v1.9.5]
-// [update: 恢复独立Q监听，添加防冲突协同逻辑]
+// [version: v1.9.6]
+// [update: 扩展协同检查以包含Y确认指令]
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
@@ -648,8 +648,9 @@ const BUCKET_NAME = "stomach_pain";
             // 1. 优先检查是否存在等待确认的操作
             const pendingStateStr = bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
 
-            // 协同检查
-            if ((!pendingStateStr || pendingStateStr === "null" || pendingStateStr === "") && isQuitCommand(content)) {
+            // 协同检查：如果自己没有等待状态，但收到了单字母指令（Y/N/Q等），检查是否其他插件有等待状态
+            const isSingleLetterCommand = /^[YyNnQq]$/.test(content) || content === '取消' || content === '退出';
+            if ((!pendingStateStr || pendingStateStr === "null" || pendingStateStr === "") && isSingleLetterCommand) {
                 const otherBuckets = ["aoligei_pending_action", "weight_pending_action"];
                 for (const otherB of otherBuckets) {
                     const otherState = bucketGet(otherB, PENDING_KEY);
