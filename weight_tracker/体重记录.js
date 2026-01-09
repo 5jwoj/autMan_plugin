@@ -35,7 +35,7 @@
 // [service: 88489948]
 // [price: 0.00]
 // [version: v1.1.1]
-// [update: 修复数字误触、优化Q退出提示、修复Promise警告]
+// [update: 彻底移除async/await，转为同步执行]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
@@ -171,7 +171,7 @@ function isValidDate(dateStr) {
 /**
  * 请求确认记录体重
  */
-async function requestRecordConfirmation(weight, date) {
+function requestRecordConfirmation(weight, date) {
     try {
         const userID = getUserID();
         const userName = getUserName();
@@ -180,7 +180,7 @@ async function requestRecordConfirmation(weight, date) {
         // 验证体重值
         const weightValue = parseFloat(weight);
         if (isNaN(weightValue) || weightValue <= 0 || weightValue > 500) {
-            await sendMessage("❌ 体重数值无效,请输入0-500之间的数字");
+            sendMessage("❌ 体重数值无效,请输入0-500之间的数字");
             return;
         }
 
@@ -189,7 +189,7 @@ async function requestRecordConfirmation(weight, date) {
 
         // 如果指定了日期,验证日期格式
         if (date && !isValidDate(date)) {
-            await sendMessage("❌ 日期格式无效,请使用 YYYY-MM-DD 格式 (如: 2026-01-01)");
+            sendMessage("❌ 日期格式无效,请使用 YYYY-MM-DD 格式 (如: 2026-01-01)");
             return;
         }
 
@@ -201,21 +201,21 @@ async function requestRecordConfirmation(weight, date) {
             userName: userName,
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`📝 准备记录 ${userName} 在 ${recordDate} 的体重: ${weightValue}kg\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
+        sendMessage(`📝 准备记录 ${userName} 在 ${recordDate} 的体重: ${weightValue}kg\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求记录确认时出错:", error);
-        await sendMessage(`❌ 请求记录确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求记录确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行记录体重
  */
-async function executeRecordWeight(pendingAction) {
+function executeRecordWeight(pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
@@ -224,7 +224,7 @@ async function executeRecordWeight(pendingAction) {
         const userName = pendingAction.userName;
 
         // 获取已有数据
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -246,11 +246,11 @@ async function executeRecordWeight(pendingAction) {
             data.records[existingIndex].weight = weightValue;
             data.records[existingIndex].timestamp = new Date().getTime();
 
-            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
+            bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
             const diff = weightValue - oldWeight;
             const diffStr = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
-            await sendMessage(`✅ 已更新 ${userName} 在 ${recordDate} 的体重记录:\n${oldWeight}kg → ${weightValue}kg (${diffStr}kg)\n\n当前共有 ${data.records.length} 条记录`);
+            sendMessage(`✅ 已更新 ${userName} 在 ${recordDate} 的体重记录:\n${oldWeight}kg → ${weightValue}kg (${diffStr}kg)\n\n当前共有 ${data.records.length} 条记录`);
         } else {
             // 添加新记录
             data.records.push({
@@ -262,7 +262,7 @@ async function executeRecordWeight(pendingAction) {
             // 按日期排序
             data.records.sort((a, b) => a.date.localeCompare(b.date));
 
-            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
+            bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
             let message = `✅ 已记录 ${userName} 在 ${recordDate} 的体重: ${weightValue}kg\n\n当前共有 ${data.records.length} 条记录`;
 
@@ -278,24 +278,24 @@ async function executeRecordWeight(pendingAction) {
                 }
             }
 
-            await sendMessage(message);
+            sendMessage(message);
         }
 
     } catch (error) {
         console.error("记录体重时出错:", error);
-        await sendMessage(`❌ 记录体重时出错: ${error.message}`);
+        sendMessage(`❌ 记录体重时出错: ${error.message}`);
     }
 }
 
 /**
  * 显示体重记录(时间轴视图)
  */
-async function showWeightRecords(days) {
+function showWeightRecords(days) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -307,7 +307,7 @@ async function showWeightRecords(days) {
         }
 
         if (data.records.length === 0) {
-            await sendMessage("📋 暂无体重记录\\n\\n💡 发送「体重 65.5」开始记录");
+            sendMessage("📋 暂无体重记录\\n\\n💡 发送「体重 65.5」开始记录");
             return;
         }
 
@@ -365,23 +365,23 @@ async function showWeightRecords(days) {
             }
         }
 
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("查询记录时出错:", error);
-        await sendMessage(`❌ 查询记录时出错: ${error.message}`);
+        sendMessage(`❌ 查询记录时出错: ${error.message}`);
     }
 }
 
 /**
  * 显示统计信息
  */
-async function showStatistics(days) {
+function showStatistics(days) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -393,7 +393,7 @@ async function showStatistics(days) {
         }
 
         if (data.records.length === 0) {
-            await sendMessage("📋 暂无体重记录");
+            sendMessage("📋 暂无体重记录");
             return;
         }
 
@@ -410,7 +410,7 @@ async function showStatistics(days) {
         }
 
         if (statsRecords.length === 0) {
-            await sendMessage(`📋 最近${days}天暂无体重记录`);
+            sendMessage(`📋 最近${days}天暂无体重记录`);
             return;
         }
 
@@ -466,23 +466,23 @@ async function showStatistics(days) {
             }
         }
 
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("查询统计时出错:", error);
-        await sendMessage(`❌ 查询统计时出错: ${error.message}`);
+        sendMessage(`❌ 查询统计时出错: ${error.message}`);
     }
 }
 
 /**
  * 显示带编号的详细记录
  */
-async function showDetailedRecords() {
+function showDetailedRecords() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -494,7 +494,7 @@ async function showDetailedRecords() {
         }
 
         if (data.records.length === 0) {
-            await sendMessage("📋 暂无体重记录");
+            sendMessage("📋 暂无体重记录");
             return;
         }
 
@@ -514,7 +514,7 @@ async function showDetailedRecords() {
         message += "例如: 直接发送 3 即可删除第3条\n";
         message += "或使用「修改体重记录 [编号] [新数值]」修改";
 
-        await sendMessage(message);
+        sendMessage(message);
 
         // 设置 "查看详情" 状态，允许后续输入数字删除
         const PENDING_KEY = `user_${userID}`;
@@ -522,18 +522,18 @@ async function showDetailedRecords() {
             action: 'view_details',
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
     } catch (error) {
         console.error("查询详细记录时出错:", error);
-        await sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
+        sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
     }
 }
 
 /**
  * 请求确认设置目标体重
  */
-async function requestSetTargetConfirmation(target) {
+function requestSetTargetConfirmation(target) {
     try {
         const userID = getUserID();
         const PENDING_KEY = `user_${userID}`;
@@ -541,7 +541,7 @@ async function requestSetTargetConfirmation(target) {
         // 验证目标值
         const targetValue = parseFloat(target);
         if (isNaN(targetValue) || targetValue <= 0 || targetValue > 500) {
-            await sendMessage("❌ 目标体重数值无效,请输入0-500之间的数字");
+            sendMessage("❌ 目标体重数值无效,请输入0-500之间的数字");
             return;
         }
 
@@ -551,27 +551,27 @@ async function requestSetTargetConfirmation(target) {
             target: targetValue,
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
-        await sendMessage(`🎯 准备设置目标体重为: ${targetValue}kg\n\n确认设置请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
+        sendMessage(`🎯 准备设置目标体重为: ${targetValue}kg\n\n确认设置请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求设置目标确认时出错:", error);
-        await sendMessage(`❌ 请求设置目标确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求设置目标确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行设置目标体重
  */
-async function executeSetTargetWeight(pendingAction) {
+function executeSetTargetWeight(pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
         const targetValue = pendingAction.target;
 
         // 获取已有数据
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -584,7 +584,7 @@ async function executeSetTargetWeight(pendingAction) {
         }
 
         data.target = targetValue;
-        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
+        bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
         let message = `✅ 已设置目标体重为: ${targetValue}kg`;
 
@@ -604,23 +604,23 @@ async function executeSetTargetWeight(pendingAction) {
             }
         }
 
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("设置目标时出错:", error);
-        await sendMessage(`❌ 设置目标时出错: ${error.message}`);
+        sendMessage(`❌ 设置目标时出错: ${error.message}`);
     }
 }
 
 /**
  * 显示目标进度
  */
-async function showTargetProgress() {
+function showTargetProgress() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -632,12 +632,12 @@ async function showTargetProgress() {
         }
 
         if (!data.target) {
-            await sendMessage("❌ 尚未设置目标体重\\n\\n💡 发送「设置目标体重 60」来设定目标");
+            sendMessage("❌ 尚未设置目标体重\\n\\n💡 发送「设置目标体重 60」来设定目标");
             return;
         }
 
         if (data.records.length === 0) {
-            await sendMessage(`🎯 目标体重: ${data.target}kg\\n\\n📋 暂无体重记录,无法计算进度`);
+            sendMessage(`🎯 目标体重: ${data.target}kg\\n\\n📋 暂无体重记录,无法计算进度`);
             return;
         }
 
@@ -662,37 +662,37 @@ async function showTargetProgress() {
             message += `📈 进度: ${progress}%`;
         }
 
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("查询目标进度时出错:", error);
-        await sendMessage(`❌ 查询目标进度时出错: ${error.message}`);
+        sendMessage(`❌ 查询目标进度时出错: ${error.message}`);
     }
 }
 
 /**
  * 请求确认删除记录
  */
-async function requestDeleteConfirmation(indexStr) {
+function requestDeleteConfirmation(indexStr) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
         const PENDING_KEY = `user_${userID}`;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
             } catch (e) {
-                await sendMessage("❌ 记录数据格式错误");
+                sendMessage("❌ 记录数据格式错误");
                 return;
             }
         }
 
         if (data.records.length === 0) {
-            await sendMessage("📋 暂无记录可删除");
+            sendMessage("📋 暂无记录可删除");
             return;
         }
 
@@ -703,7 +703,7 @@ async function requestDeleteConfirmation(indexStr) {
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
 
         if (isNaN(index) || index < 1 || index > sortedRecords.length) {
-            await sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「体重详细记录」查看有效编号`);
+            sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「体重详细记录」查看有效编号`);
             return;
         }
 
@@ -717,34 +717,34 @@ async function requestDeleteConfirmation(indexStr) {
             targetRecord: targetRecord, // 保存以供确认
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.date}  ${targetRecord.weight}kg\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
+        sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.date}  ${targetRecord.weight}kg\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求删除确认时出错:", error);
-        await sendMessage(`❌ 请求删除确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求删除确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行删除记录
  */
-async function executeDeleteRecord(pendingAction) {
+function executeDeleteRecord(pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
         const index = pendingAction.index;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
             } catch (e) {
-                await sendMessage("❌ 记录数据格式错误");
+                sendMessage("❌ 记录数据格式错误");
                 return;
             }
         }
@@ -753,14 +753,14 @@ async function executeDeleteRecord(pendingAction) {
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
 
         if (index < 1 || index > sortedRecords.length) {
-            await sendMessage("❌ 记录已变化,请重新操作");
+            sendMessage("❌ 记录已变化,请重新操作");
             return;
         }
 
         // 验证记录一致性
         const targetRecordInSorted = sortedRecords[index - 1];
         if (targetRecordInSorted.date !== pendingAction.targetRecord.date) {
-            await sendMessage("❌ 记录顺序已变更,请重新操作");
+            sendMessage("❌ 记录顺序已变更,请重新操作");
             return;
         }
 
@@ -768,7 +768,7 @@ async function executeDeleteRecord(pendingAction) {
         const originalIndex = data.records.findIndex(r => r.date === targetRecordInSorted.date);
 
         if (originalIndex === -1) {
-            await sendMessage("❌ 找不到原始记录");
+            sendMessage("❌ 找不到原始记录");
             return;
         }
 
@@ -777,23 +777,23 @@ async function executeDeleteRecord(pendingAction) {
 
         // 保存更新后的数据
         if (data.records.length === 0 && !data.target) {
-            await bucketDel(BUCKET_NAME, STORAGE_KEY);
+            bucketDel(BUCKET_NAME, STORAGE_KEY);
         } else {
-            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
+            bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
         }
 
-        await sendMessage(`✅ 已删除记录 [${index}]:\n${deletedRecord.date}  ${deletedRecord.weight}kg\n\n剩余 ${data.records.length} 条记录`);
+        sendMessage(`✅ 已删除记录 [${index}]:\n${deletedRecord.date}  ${deletedRecord.weight}kg\n\n剩余 ${data.records.length} 条记录`);
 
     } catch (error) {
         console.error("删除记录时出错:", error);
-        await sendMessage(`❌ 删除记录时出错: ${error.message}`);
+        sendMessage(`❌ 删除记录时出错: ${error.message}`);
     }
 }
 
 /**
  * 请求确认修改记录
  */
-async function requestModifyConfirmation(indexStr, newWeight) {
+function requestModifyConfirmation(indexStr, newWeight) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
@@ -802,24 +802,24 @@ async function requestModifyConfirmation(indexStr, newWeight) {
         // 验证新体重值
         const newWeightValue = parseFloat(newWeight);
         if (isNaN(newWeightValue) || newWeightValue <= 0 || newWeightValue > 500) {
-            await sendMessage("❌ 体重数值无效,请输入0-500之间的数字");
+            sendMessage("❌ 体重数值无效,请输入0-500之间的数字");
             return;
         }
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
             } catch (e) {
-                await sendMessage("❌ 记录数据格式错误");
+                sendMessage("❌ 记录数据格式错误");
                 return;
             }
         }
 
         if (data.records.length === 0) {
-            await sendMessage("📋 暂无记录可修改");
+            sendMessage("📋 暂无记录可修改");
             return;
         }
 
@@ -830,7 +830,7 @@ async function requestModifyConfirmation(indexStr, newWeight) {
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
 
         if (isNaN(index) || index < 1 || index > sortedRecords.length) {
-            await sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「体重详细记录」查看有效编号`);
+            sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「体重详细记录」查看有效编号`);
             return;
         }
 
@@ -845,35 +845,35 @@ async function requestModifyConfirmation(indexStr, newWeight) {
             targetRecord: targetRecord, // 保存旧记录以供确认
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`✏️ 准备修改记录 [${index}]:\n${targetRecord.date}\n${targetRecord.weight}kg → ${newWeightValue}kg\n\n确认修改请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
+        sendMessage(`✏️ 准备修改记录 [${index}]:\n${targetRecord.date}\n${targetRecord.weight}kg → ${newWeightValue}kg\n\n确认修改请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求修改确认时出错:", error);
-        await sendMessage(`❌ 请求修改确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求修改确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行修改记录
  */
-async function executeModifyRecord(pendingAction) {
+function executeModifyRecord(pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
         const newWeightValue = pendingAction.newWeight;
         const index = pendingAction.index;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
             try {
                 data = JSON.parse(existingData);
             } catch (e) {
-                await sendMessage("❌ 记录数据格式错误");
+                sendMessage("❌ 记录数据格式错误");
                 return;
             }
         }
@@ -882,14 +882,14 @@ async function executeModifyRecord(pendingAction) {
         const sortedRecords = data.records.slice().sort((a, b) => b.date.localeCompare(a.date));
 
         if (index < 1 || index > sortedRecords.length) {
-            await sendMessage("❌ 记录索引无效(数据可能已变更)");
+            sendMessage("❌ 记录索引无效(数据可能已变更)");
             return;
         }
 
         // 再次确认是否是同一条记录 (通过日期匹配)
         const targetRecordInSorted = sortedRecords[index - 1];
         if (targetRecordInSorted.date !== pendingAction.targetRecord.date) {
-            await sendMessage("❌ 记录顺序已变更,请重新操作");
+            sendMessage("❌ 记录顺序已变更,请重新操作");
             return;
         }
 
@@ -897,7 +897,7 @@ async function executeModifyRecord(pendingAction) {
         const originalIndex = data.records.findIndex(r => r.date === targetRecordInSorted.date);
 
         if (originalIndex === -1) {
-            await sendMessage("❌ 找不到原始记录");
+            sendMessage("❌ 找不到原始记录");
             return;
         }
 
@@ -905,28 +905,28 @@ async function executeModifyRecord(pendingAction) {
         data.records[originalIndex].weight = newWeightValue;
         data.records[originalIndex].timestamp = new Date().getTime();
 
-        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
+        bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
 
         const diff = newWeightValue - oldWeight;
         const diffStr = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
-        await sendMessage(`✅ 已修改记录 [${index}]:\n${targetRecordInSorted.date}\n${oldWeight}kg → ${newWeightValue}kg (${diffStr}kg)`);
+        sendMessage(`✅ 已修改记录 [${index}]:\n${targetRecordInSorted.date}\n${oldWeight}kg → ${newWeightValue}kg (${diffStr}kg)`);
 
     } catch (error) {
         console.error("修改记录时出错:", error);
-        await sendMessage(`❌ 修改记录时出错: ${error.message}`);
+        sendMessage(`❌ 修改记录时出错: ${error.message}`);
     }
 }
 
 /**
  * 请求确认清空记录
  */
-async function requestClearConfirmation() {
+function requestClearConfirmation() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
         const PENDING_KEY = `user_${userID}`;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -938,7 +938,7 @@ async function requestClearConfirmation() {
         }
 
         if (!data.records || data.records.length === 0) {
-            await sendMessage("📋 暂无记录可清空");
+            sendMessage("📋 暂无记录可清空");
             return;
         }
 
@@ -949,7 +949,7 @@ async function requestClearConfirmation() {
             target: data.target,
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         let message = `⚠️ 确定要清空所有 ${data.records.length} 条体重记录吗？\n\n此操作不可恢复!`;
         if (data.target) {
@@ -957,23 +957,23 @@ async function requestClearConfirmation() {
         }
         message += `\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`;
 
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("请求清空确认时出错:", error);
-        await sendMessage(`❌ 请求清空确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求清空确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行清空记录
  */
-async function executeClearAllRecords(pendingAction) {
+function executeClearAllRecords(pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingData = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingData = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let data = { records: [], target: null };
 
         if (existingData && existingData !== "" && existingData !== "null") {
@@ -988,23 +988,23 @@ async function executeClearAllRecords(pendingAction) {
         data.records = [];
 
         if (!data.target) {
-            await bucketDel(BUCKET_NAME, STORAGE_KEY);
-            await sendMessage("🗑️ 已清空所有体重记录");
+            bucketDel(BUCKET_NAME, STORAGE_KEY);
+            sendMessage("🗑️ 已清空所有体重记录");
         } else {
-            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
-            await sendMessage(`🗑️ 已清空所有体重记录\n\n🎯 目标体重 ${data.target}kg 已保留`);
+            bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(data));
+            sendMessage(`🗑️ 已清空所有体重记录\n\n🎯 目标体重 ${data.target}kg 已保留`);
         }
 
     } catch (error) {
         console.error("清空记录时出错:", error);
-        await sendMessage(`❌ 清空记录时出错: ${error.message}`);
+        sendMessage(`❌ 清空记录时出错: ${error.message}`);
     }
 }
 
 /**
  * 显示帮助信息
  */
-async function showHelp() {
+function showHelp() {
     try {
         let helpMessage = "📖 体重记录插件使用说明 v1.1.0\n";
         helpMessage += "━━━━━━━━━━━━━━━━━━\n\n";
@@ -1053,18 +1053,18 @@ async function showHelp() {
         helpMessage += "💡 小技巧\n";
         helpMessage += "• 查看详细记录后可直接发送数字删除";
 
-        await sendMessage(helpMessage);
+        sendMessage(helpMessage);
 
     } catch (error) {
         console.error("显示帮助时出错:", error);
-        await sendMessage(`❌ 显示帮助时出错: ${error.message}`);
+        sendMessage(`❌ 显示帮助时出错: ${error.message}`);
     }
 }
 
 /**
  * 主函数
  */
-async function main() {
+function main() {
     try {
         const content = getMessageContent().trim();
         const userID = getUserID();
@@ -1073,7 +1073,7 @@ async function main() {
         console.log(`[体重记录插件] 收到消息: [${content}]`);
 
         // 1. 优先检查是否存在等待确认的操作
-        const pendingStateStr = await bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
+        const pendingStateStr = bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
         if (pendingStateStr && pendingStateStr !== "" && pendingStateStr !== "null") {
             try {
                 const pendingAction = JSON.parse(pendingStateStr);
@@ -1082,7 +1082,7 @@ async function main() {
                 // 检查是否超时 (30秒)
                 if (now - pendingAction.timestamp > 30000) {
                     console.log("[体重记录插件] 等待操作已超时，清除状态");
-                    await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                    bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
                     return; // 超时后直接退出，不处理当前输入
                 } else {
                     if (pendingAction.action === 'view_details') {
@@ -1090,16 +1090,16 @@ async function main() {
                         const isPureNumber = /^\d+$/.test(content);
                         if (isPureNumber) {
                             console.log(`[体重记录插件] 详情浏览模式下检测到数字: ${content}，请求删除确认`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 清除 view_details
-                            await requestDeleteConfirmation(content); // 进入删除确认流程
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 清除 view_details
+                            requestDeleteConfirmation(content); // 进入删除确认流程
                             return;
                         } else {
                             // 输入非数字，视为退出详情模式
                             console.log(`[体重记录插件] 详情浏览模式下输入非数字，清除状态并继续`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
                             // 如果是Q/N，给予明确的退出提示
                             if (isQuitCommand(content)) {
-                                await sendMessage("✅ 已退出体重详情浏览模式");
+                                sendMessage("✅ 已退出体重详情浏览模式");
                                 return;
                             }
                             // 其他输入继续向下匹配常规指令
@@ -1109,38 +1109,38 @@ async function main() {
                         if (isConfirmCommand(content)) {
                             // 用户确认执行
                             console.log(`[体重记录插件] 用户确认执行操作: ${pendingAction.action}`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 先清除状态
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 先清除状态
 
                             if (pendingAction.action === 'record') {
-                                await executeRecordWeight(pendingAction);
+                                executeRecordWeight(pendingAction);
                             } else if (pendingAction.action === 'delete') {
-                                await executeDeleteRecord(pendingAction);
+                                executeDeleteRecord(pendingAction);
                             } else if (pendingAction.action === 'modify') {
-                                await executeModifyRecord(pendingAction);
+                                executeModifyRecord(pendingAction);
                             } else if (pendingAction.action === 'clear') {
-                                await executeClearAllRecords(pendingAction);
+                                executeClearAllRecords(pendingAction);
                             } else if (pendingAction.action === 'set_target') {
-                                await executeSetTargetWeight(pendingAction);
+                                executeSetTargetWeight(pendingAction);
                             }
                             return; // 处理完毕，退出
 
                         } else if (isQuitCommand(content)) {
                             // 用户取消
                             console.log(`[体重记录插件] 用户取消操作: ${pendingAction.action}`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
-                            await sendMessage("已退出操作");
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            sendMessage("已退出操作");
                             return; // 处理完毕，退出
                         } else {
                             // 用户输入了其他内容，如果不是触发词，则提示；如果是触发词，可以在下面继续处理
                             // 为了简单和符合直觉：只有 Y/N/Q 会被 pending 逻辑捕获。
                             console.log("[体重记录插件] 用户输入非确认指令，清除等待状态，尝试匹配新命令");
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
                         }
                     }
                 }
             } catch (e) {
                 console.error("解析等待状态失败:", e);
-                await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
             }
         }
 
@@ -1152,47 +1152,47 @@ async function main() {
             const daysMatch = content.match(/体重统计\s*(\d+)/);
             const days = daysMatch ? parseInt(daysMatch[1]) : 0;
             console.log(`[体重记录插件] 执行: 查看统计 (天数: ${days || '全部'})`);
-            await showStatistics(days);
+            showStatistics(days);
 
         } else if (content.indexOf("设置目标体重") !== -1 || content.indexOf("设定目标体重") !== -1) {
             const match = content.match(/(?:设置|设定)目标体重\s*([\d.]+)/);
             if (match && match[1]) {
                 console.log("[体重记录插件] 执行: 请求设置目标确认");
-                await requestSetTargetConfirmation(match[1]);
+                requestSetTargetConfirmation(match[1]);
             } else {
-                await sendMessage("❓ 请输入目标体重数值 (如: 设置目标体重 60)");
+                sendMessage("❓ 请输入目标体重数值 (如: 设置目标体重 60)");
             }
 
         } else if (content.indexOf("目标进度") !== -1) {
             console.log("[体重记录插件] 执行: 查看目标进度");
-            await showTargetProgress();
+            showTargetProgress();
 
         } else if (content.indexOf("删除体重记录") !== -1) {
             const match = content.match(/删除体重记录\s+(\d+)/);
             if (match && match[1]) {
                 console.log("[体重记录插件] 执行: 请求删除确认");
-                await requestDeleteConfirmation(match[1]);
+                requestDeleteConfirmation(match[1]);
             } else {
                 console.log("[体重记录插件] 未提供编号，显示详细记录");
-                await showDetailedRecords();
+                showDetailedRecords();
             }
 
         } else if (content.indexOf("修改体重记录") !== -1) {
             const match = content.match(/修改体重记录\s+(\d+)\s+([\d.]+)/);
             if (match && match[1] && match[2]) {
                 console.log("[体重记录插件] 执行: 请求修改确认");
-                await requestModifyConfirmation(match[1], match[2]);
+                requestModifyConfirmation(match[1], match[2]);
             } else {
-                await sendMessage("❓ 指令格式错误\n正确格式: 修改体重记录 [编号] [新数值]\n示例: 修改体重记录 1 65.5");
+                sendMessage("❓ 指令格式错误\n正确格式: 修改体重记录 [编号] [新数值]\n示例: 修改体重记录 1 65.5");
             }
 
         } else if (content.indexOf("清空体重记录") !== -1) {
             console.log("[体重记录插件] 执行: 请求清空确认");
-            await requestClearConfirmation();
+            requestClearConfirmation();
 
         } else if (content.indexOf("体重详细记录") !== -1) {
             console.log("[体重记录插件] 执行: 查看详细记录");
-            await showDetailedRecords();
+            showDetailedRecords();
 
         } else if (content.indexOf("体重记录") !== -1) {
             // 检查是否是补录指令 (体重记录 [日期] [数值])
@@ -1201,15 +1201,15 @@ async function main() {
 
             if (recordMatch && recordMatch[1] && recordMatch[2]) {
                 console.log("[体重记录插件] 执行: 请求补录确认");
-                await requestRecordConfirmation(recordMatch[2], recordMatch[1]);
+                requestRecordConfirmation(recordMatch[2], recordMatch[1]);
             } else if (content.trim() === "体重记录") {
                 console.log("[体重记录插件] 执行: 查看记录");
-                await showWeightRecords(7); // 默认显示最近7条
+                showWeightRecords(7); // 默认显示最近7条
             }
 
         } else if (content.indexOf("体重帮助") !== -1) {
             console.log("[体重记录插件] 执行: 显示帮助");
-            await showHelp();
+            showHelp();
 
         } else if (content.indexOf("体重") !== -1) {
             // 匹配记录指令 (体重 [数值])
@@ -1222,7 +1222,7 @@ async function main() {
                 const numMatch = content.match(/体重\s*([\d.]+)/);
                 if (numMatch && numMatch[1]) {
                     console.log("[体重记录插件] 执行: 请求记录确认");
-                    await requestRecordConfirmation(numMatch[1]);
+                    requestRecordConfirmation(numMatch[1]);
                 }
             }
         }
@@ -1230,7 +1230,7 @@ async function main() {
     } catch (error) {
         console.error("[体重记录插件] 执行出错:", error);
         try {
-            await sendMessage(`💥 插件执行出错: ${error.message}`);
+            sendMessage(`💥 插件执行出错: ${error.message}`);
         } catch (e) {
             console.error("无法发送错误消息:", e);
         }

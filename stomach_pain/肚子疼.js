@@ -31,7 +31,7 @@
 // [service: 88489948]
 // [price: 0.00]
 // [version: v1.9.1]
-// [update: 修复数字误触、优化Q退出提示、修复Promise警告]
+// [update: 彻底移除async/await，转为同步执行]
 
 // 定义存储桶名称
 const BUCKET_NAME = "stomach_pain";
@@ -42,7 +42,7 @@ const PENDING_ACTION_BUCKET = "stomach_pain_pending"; // 等待用户确认的�
  * @param {number} timeout - 超时时间(毫秒)
  * @returns {Promise<string|null>} - 用户输入或null(超时)
  */
-async function waitForInput(timeout = 60000) {
+function waitForInput(timeout = 60000) {
     if (typeof Sender !== 'undefined' && Sender && typeof Sender.listen === 'function') {
         return Sender.listen(timeout);
     }
@@ -169,7 +169,7 @@ function getUserName() {
 /**
  * 请求确认记录肚子疼时间（第一阶段）
  */
-async function requestRecordConfirmation() {
+function requestRecordConfirmation() {
     try {
         const currentTime = getCurrentTime();
         const userID = getUserID();
@@ -183,27 +183,27 @@ async function requestRecordConfirmation() {
             userName: userName,
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`📝 准备记录 ${userName} 的肚子疼时间:\n${currentTime}\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
+        sendMessage(`📝 准备记录 ${userName} 的肚子疼时间:\n${currentTime}\n\n确认记录请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求确认时出错:", error);
-        await sendMessage(`❌ 请求确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行记录肚子疼时间（第二阶段-确认后执行）
  */
-async function executeRecordPainTime(pendingAction) {
+function executeRecordPainTime(pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
         // 获取已有记录
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingRecords = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
 
         if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
@@ -222,15 +222,15 @@ async function executeRecordPainTime(pendingAction) {
         });
 
         // 保存记录
-        await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(records));
+        bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(records));
 
         // 发送确认消息
         const message = `✅ 已记录 ${pendingAction.userName} 的肚子疼时间:\n${pendingAction.time}\n\n当前共有 ${records.length} 条记录`;
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("记录时出错:", error);
-        await sendMessage(`❌ 记录时出错: ${error.message}`);
+        sendMessage(`❌ 记录时出错: ${error.message}`);
     }
 }
 
@@ -342,12 +342,12 @@ function generateTimelineView(records) {
 /**
  * 显示所有记录
  */
-async function showAllRecords() {
+function showAllRecords() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingRecords = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
 
         if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
@@ -359,29 +359,29 @@ async function showAllRecords() {
         }
 
         if (records.length === 0) {
-            await sendMessage("📋 暂无肚子疼记录");
+            sendMessage("📋 暂无肚子疼记录");
             return;
         }
 
         // 生成时间轴视图
         const message = generateTimelineView(records);
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("查询时出错:", error);
-        await sendMessage(`❌ 查询时出错: ${error.message}`);
+        sendMessage(`❌ 查询时出错: ${error.message}`);
     }
 }
 
 /**
  * 显示带编号的详细记录
  */
-async function showDetailedRecords() {
+function showDetailedRecords() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingRecords = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
 
         if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
@@ -393,7 +393,7 @@ async function showDetailedRecords() {
         }
 
         if (records.length === 0) {
-            await sendMessage("📋 暂无肚子疼记录");
+            sendMessage("📋 暂无肚子疼记录");
             return;
         }
 
@@ -411,7 +411,7 @@ async function showDetailedRecords() {
         message += "例如: 直接发送 3 即可删除第3条\n";
         message += "或使用完整指令: 删除肚子疼记录 3";
 
-        await sendMessage(message);
+        sendMessage(message);
 
         // 设置 "查看详情" 状态，允许后续输入数字删除
         const PENDING_KEY = `user_${userID}`;
@@ -419,11 +419,11 @@ async function showDetailedRecords() {
             action: 'view_details',
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
     } catch (error) {
         console.error("查询详细记录时出错:", error);
-        await sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
+        sendMessage(`❌ 查询详细记录时出错: ${error.message}`);
     }
 }
 
@@ -431,34 +431,34 @@ async function showDetailedRecords() {
 /**
  * 请求确认删除记录（第一阶段）
  */
-async function requestDeleteConfirmation(indexStr) {
+function requestDeleteConfirmation(indexStr) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
         const PENDING_KEY = `user_${userID}`;
 
         // 获取已有记录
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingRecords = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
 
         if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
             try {
                 records = JSON.parse(existingRecords);
             } catch (e) {
-                await sendMessage("❌ 记录数据格式错误");
+                sendMessage("❌ 记录数据格式错误");
                 return;
             }
         }
 
         if (records.length === 0) {
-            await sendMessage("📋 暂无记录可删除");
+            sendMessage("📋 暂无记录可删除");
             return;
         }
 
         // 解析编号
         const index = parseInt(indexStr);
         if (isNaN(index) || index < 1 || index > records.length) {
-            await sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「肚子疼详细记录」查看有效编号`);
+            sendMessage(`❌ 无效的编号"${indexStr}"\n请使用「肚子疼详细记录」查看有效编号`);
             return;
         }
 
@@ -471,41 +471,41 @@ async function requestDeleteConfirmation(indexStr) {
             record: targetRecord,
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.time}\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
+        sendMessage(`🗑️ 准备删除记录 [${index}]:\n${targetRecord.time}\n\n确认删除请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求删除确认时出错:", error);
-        await sendMessage(`❌ 请求删除确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求删除确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行删除记录（第二阶段-确认后执行）
  */
-async function executeDeleteRecord(pendingAction) {
+function executeDeleteRecord(pendingAction) {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
 
         // 获取已有记录
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingRecords = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
 
         if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
             try {
                 records = JSON.parse(existingRecords);
             } catch (e) {
-                await sendMessage("❌ 记录数据格式错误");
+                sendMessage("❌ 记录数据格式错误");
                 return;
             }
         }
 
         const index = pendingAction.index;
         if (index < 1 || index > records.length) {
-            await sendMessage(`❌ 记录已变化,请重新操作`);
+            sendMessage(`❌ 记录已变化,请重新操作`);
             return;
         }
 
@@ -515,32 +515,32 @@ async function executeDeleteRecord(pendingAction) {
 
         // 保存更新后的记录
         if (records.length === 0) {
-            await bucketDel(BUCKET_NAME, STORAGE_KEY);
+            bucketDel(BUCKET_NAME, STORAGE_KEY);
         } else {
-            await bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(records));
+            bucketSet(BUCKET_NAME, STORAGE_KEY, JSON.stringify(records));
         }
 
         // 发送确认消息
         const message = `✅ 已删除记录 [${index}]:\n${deletedRecord.time}\n\n剩余 ${records.length} 条记录`;
-        await sendMessage(message);
+        sendMessage(message);
 
     } catch (error) {
         console.error("删除记录时出错:", error);
-        await sendMessage(`❌ 删除记录时出错: ${error.message}`);
+        sendMessage(`❌ 删除记录时出错: ${error.message}`);
     }
 }
 
 /**
  * 请求确认清空记录（第一阶段）
  */
-async function requestClearConfirmation() {
+function requestClearConfirmation() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
         const PENDING_KEY = `user_${userID}`;
 
         // 检查是否有数据
-        const existingRecords = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const existingRecords = bucketGet(BUCKET_NAME, STORAGE_KEY);
         let records = [];
         if (existingRecords && existingRecords !== "" && existingRecords !== "null") {
             try {
@@ -551,7 +551,7 @@ async function requestClearConfirmation() {
         }
 
         if (records.length === 0) {
-            await sendMessage("📋 暂无记录可清空");
+            sendMessage("📋 暂无记录可清空");
             return;
         }
 
@@ -561,21 +561,21 @@ async function requestClearConfirmation() {
             count: records.length,
             timestamp: new Date().getTime()
         };
-        await bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
+        bucketSet(PENDING_ACTION_BUCKET, PENDING_KEY, JSON.stringify(pendingAction));
 
         // 发送确认提示
-        await sendMessage(`⚠️ 确定要清空所有 ${records.length} 条肚子疼记录吗？\n\n此操作不可恢复!\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
+        sendMessage(`⚠️ 确定要清空所有 ${records.length} 条肚子疼记录吗？\n\n此操作不可恢复!\n\n确认清空请回复 Y, 取消请回复 Q 或 N\n(30秒内有效)`);
 
     } catch (error) {
         console.error("请求清空确认时出错:", error);
-        await sendMessage(`❌ 请求清空确认时出错: ${error.message}`);
+        sendMessage(`❌ 请求清空确认时出错: ${error.message}`);
     }
 }
 
 /**
  * 执行清空记录（第二阶段-确认后执行）
  */
-async function executeClearAllRecords() {
+function executeClearAllRecords() {
     try {
         const userID = getUserID();
         const STORAGE_KEY = `user_${userID}`;
@@ -583,29 +583,29 @@ async function executeClearAllRecords() {
         console.log(`[清空记录] 用户ID: ${userID}, 存储键: ${STORAGE_KEY}`);
 
         // 执行删除
-        const delResult = await bucketDel(BUCKET_NAME, STORAGE_KEY);
+        const delResult = bucketDel(BUCKET_NAME, STORAGE_KEY);
         console.log(`[清空记录] bucketDel返回值: ${delResult}`);
 
         // 删除后验证
-        const afterDelete = await bucketGet(BUCKET_NAME, STORAGE_KEY);
+        const afterDelete = bucketGet(BUCKET_NAME, STORAGE_KEY);
 
         // 如果删除后仍有数据,尝试设置为空
         if (afterDelete && afterDelete !== "" && afterDelete !== "null") {
-            await bucketSet(BUCKET_NAME, STORAGE_KEY, "");
+            bucketSet(BUCKET_NAME, STORAGE_KEY, "");
         }
 
-        await sendMessage("🗑️ 已清空所有肚子疼记录");
+        sendMessage("🗑️ 已清空所有肚子疼记录");
 
     } catch (error) {
         console.error("清空记录时出错:", error);
-        await sendMessage(`❌ 清空记录时出错: ${error.message}`);
+        sendMessage(`❌ 清空记录时出错: ${error.message}`);
     }
 }
 
 /**
  * 显示帮助信息
  */
-async function showHelp() {
+function showHelp() {
     try {
         let helpMessage = "📖 肚子疼记录插件使用说明 v1.9.0\n";
         helpMessage += "━━━━━━━━━━━━━━━━━━\n\n";
@@ -622,18 +622,18 @@ async function showHelp() {
         helpMessage += "✨ 快捷操作:\n";
         helpMessage += "• 查看详细记录后，直接发送数字可删除对应记录\n";
 
-        await sendMessage(helpMessage);
+        sendMessage(helpMessage);
 
     } catch (error) {
         console.error("显示帮助时出错:", error);
-        await sendMessage(`❌ 显示帮助时出错: ${error.message}`);
+        sendMessage(`❌ 显示帮助时出错: ${error.message}`);
     }
 }
 
 /**
  * 主函数
  */
-async function main() {
+function main() {
     try {
         // 获取消息内容
         const content = getMessageContent().trim();
@@ -643,7 +643,7 @@ async function main() {
         console.log(`[肚子疼插件] 收到消息: [${content}]`);
 
         // 1. 优先检查是否存在等待确认的操作
-        const pendingStateStr = await bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
+        const pendingStateStr = bucketGet(PENDING_ACTION_BUCKET, PENDING_KEY);
         if (pendingStateStr && pendingStateStr !== "" && pendingStateStr !== "null") {
             try {
                 const pendingAction = JSON.parse(pendingStateStr);
@@ -652,7 +652,7 @@ async function main() {
                 // 检查是否超时 (30秒)
                 if (now - pendingAction.timestamp > 30000) {
                     console.log("[肚子疼插件] 等待操作已超时，清除状态");
-                    await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                    bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
                     return; // 超时后直接退出，不处理当前输入
                 } else {
                     if (pendingAction.action === 'view_details') {
@@ -660,16 +660,16 @@ async function main() {
                         const isPureNumber = /^\d+$/.test(content);
                         if (isPureNumber) {
                             console.log(`[肚子疼插件] 详情浏览模式下检测到数字: ${content}，请求删除确认`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 清除 view_details
-                            await requestDeleteConfirmation(content); // 进入删除确认流程
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 清除 view_details
+                            requestDeleteConfirmation(content); // 进入删除确认流程
                             return;
                         } else {
                             // 输入非数字，视为退出详情模式
                             console.log(`[肚子疼插件] 详情浏览模式下输入非数字，清除状态并继续`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
                             // 如果是Q/N，给予明确的退出提示
                             if (isQuitCommand(content)) {
-                                await sendMessage("✅ 已退出肚子疼详情浏览模式");
+                                sendMessage("✅ 已退出肚子疼详情浏览模式");
                                 return;
                             }
                             // 其他输入继续向下匹配常规指令
@@ -679,22 +679,22 @@ async function main() {
                         if (isConfirmCommand(content)) {
                             // 用户确认执行
                             console.log(`[肚子疼插件] 用户确认执行操作: ${pendingAction.action}`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 先清除状态
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY); // 先清除状态
 
                             if (pendingAction.action === 'record') {
-                                await executeRecordPainTime(pendingAction);
+                                executeRecordPainTime(pendingAction);
                             } else if (pendingAction.action === 'delete') {
-                                await executeDeleteRecord(pendingAction);
+                                executeDeleteRecord(pendingAction);
                             } else if (pendingAction.action === 'clear') {
-                                await executeClearAllRecords();
+                                executeClearAllRecords();
                             }
                             return; // 处理完毕，退出
 
                         } else if (isQuitCommand(content)) {
                             // 用户取消
                             console.log(`[肚子疼插件] 用户取消操作: ${pendingAction.action}`);
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
-                            await sendMessage("已退出操作");
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            sendMessage("已退出操作");
                             return; // 处理完毕，退出
                         } else {
                             // 用户输入了其他内容，如果不是触发词，则提示；如果是触发词，可以在下面继续处理（相当于放弃了当前的pending）
@@ -703,13 +703,13 @@ async function main() {
                             // 为了简单和符合直觉：只有 Y/N/Q 会被 pending 逻辑捕获。
                             // 其他输入将清除 pending 并尝试作为新命令执行。
                             console.log("[肚子疼插件] 用户输入非确认指令，清除等待状态，尝试匹配新命令");
-                            await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                            bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
                         }
                     }
                 }
             } catch (e) {
                 console.error("解析等待状态失败:", e);
-                await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
+                bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
             }
         }
 
@@ -719,41 +719,41 @@ async function main() {
         // 检查是否包含关键词(按长度从长到短匹配)
         if (content.indexOf("清空肚子疼记录") !== -1) {
             console.log("[肚子疼插件] 执行: 请求清空确认");
-            await requestClearConfirmation();
+            requestClearConfirmation();
         } else if (content.indexOf("删除肚子疼记录") !== -1) {
             console.log("[肚子疼插件] 执行: 请求删除确认");
             // 提取编号
             const match = content.match(/删除肚子疼记录\s+(\d+)/);
             if (match && match[1]) {
-                await requestDeleteConfirmation(match[1]);
+                requestDeleteConfirmation(match[1]);
             } else {
                 // 没有编号时，自动显示详细记录
                 console.log("[肚子疼插件] 未提供编号，显示详细记录");
-                await showDetailedRecords();
+                showDetailedRecords();
             }
         } else if (content.indexOf("肚子疼详细记录") !== -1) {
             console.log("[肚子疼插件] 执行: 查看详细记录");
-            await showDetailedRecords();
+            showDetailedRecords();
         } else if (content.indexOf("肚子疼记录") !== -1) {
             console.log("[肚子疼插件] 执行: 查看记录");
-            await showAllRecords();
+            showAllRecords();
         } else if (content.indexOf("肚子疼帮助") !== -1) {
             console.log("[肚子疼插件] 执行: 显示帮助");
-            await showHelp();
+            showHelp();
         } else if (content.indexOf("肚子疼") !== -1) {
             // 注意：排除包含其他关键词的情况（比如“肚子疼记录”也会匹配“肚子疼”）
             // 由于上面的 if-else 顺序，长的关键词优先，所以这里其实是安全的。
             // 但为了保险，还是确认一下不是 Y/N/Q (虽然上面的 pending 逻辑处理了，但如果 pending 超时或不存在，单纯输入 Y 不应记录)
             if (!isConfirmCommand(content) && !isQuitCommand(content)) {
                 console.log("[肚子疼插件] 执行: 请求记录确认");
-                await requestRecordConfirmation();
+                requestRecordConfirmation();
             }
         }
 
     } catch (error) {
         console.error("[肚子疼插件] 执行出错:", error);
         try {
-            await sendMessage(`💥 插件执行出错: ${error.message}`);
+            sendMessage(`💥 插件执行出错: ${error.message}`);
         } catch (e) {
             console.error("无法发送错误消息:", e);
         }
