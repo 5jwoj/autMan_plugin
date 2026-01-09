@@ -1,5 +1,5 @@
 /**
- * 全局退出/取消处理器 v1.0.0
+ * 全局退出/取消处理器 v1.0.1
  * 用于解决 autMan 多插件监听简短指令(Q/取消)时的冲突问题
  */
 
@@ -8,7 +8,7 @@
 // [admin: false]
 // [service: 88489948]
 // [price: 0.00]
-// [version: v1.0.0]
+// [version: v1.0.1]
 
 // buckets
 const BUCKETS = [
