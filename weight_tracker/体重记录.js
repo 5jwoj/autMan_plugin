@@ -26,6 +26,7 @@
  * v1.0.2 - 优化指令输入
  * v1.0.1 - 优化帮助信息显示
  * v1.0.0 - 初始版本
+ * v1.1.1 - 修复数字误触及Q退出提示优化
  */
 
 // [disable:false]
@@ -34,6 +35,7 @@
 // [service: 88489948]
 // [price: 0.00]
 // [version: v1.1.1]
+// [update: 修复数字误触、优化Q退出提示、修复Promise警告]
 
 // 定义存储桶名称
 const BUCKET_NAME = "weight_tracker";
