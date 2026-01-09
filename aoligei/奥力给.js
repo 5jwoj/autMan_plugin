@@ -752,7 +752,7 @@ async function main() {
                             await bucketDel(PENDING_ACTION_BUCKET, PENDING_KEY);
                             // 如果是Q/N，给予明确的退出提示
                             if (isQuitCommand(content)) {
-                                await sendMessage("✅ 已退出详情浏览模式");
+                                await sendMessage("✅ 已退出奥力给详情浏览模式");
                                 return;
                             }
                             // 其他输入继续向下匹配常规指令
