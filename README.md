@@ -31,6 +31,29 @@
 
 ---
 
+### 🤕 肚子疼记录插件 v1.2.1
+
+健康追踪工具,记录和分析肚子疼事件,帮助了解症状规律。
+
+**特性**:
+- ✅ 记录肚子疼事件(含地点信息)
+- ✅ 按日期分组显示历史记录
+- ✅ 详细统计分析(频率、趋势)
+- ✅ 支持删除指定记录
+- ✅ 交互式确认机制
+
+**使用示例**:
+```
+肚子疼                      # 记录一次肚子疼事件
+肚子疼记录                  # 查看所有历史记录
+肚子疼删除                  # 删除指定记录
+肚子疼帮助                  # 显示帮助信息
+```
+
+**查看详情**: [stomachache/README.md](stomachache/README.md)
+
+---
+
 ### 💩 便便记录插件 v1.1.0
 
 健康生活追踪工具,记录和分析便便事件。
@@ -79,20 +102,28 @@
    systemctl restart autman
    ```
 
-### 便便记录插件(Python)
+### 健康记录插件(Python)
+
+适用于肚子疼记录和便便记录插件:
 
 1. **下载插件文件**
    ```bash
+   # 肚子疼插件
+   wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/stomachache/肚子疼.py
+   
+   # 便便插件
    wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/poop/便便.py
    ```
 
 2. **上传到autMan**
    ```bash
+   scp 肚子疼.py root@服务器:/root/aut/plugin/scripts/
    scp 便便.py root@服务器:/root/aut/plugin/scripts/
    ```
 
 3. **设置权限**
    ```bash
+   chmod 755 /root/aut/plugin/scripts/肚子疼.py
    chmod 755 /root/aut/plugin/scripts/便便.py
    ```
 
@@ -104,7 +135,7 @@
 ## 📋 系统要求
 
 - **autMan**: 支持Python和JavaScript插件的版本
-- **Python**: 3.6+ (便便记录插件)
+- **Python**: 3.6+ (健康记录插件)
 - **网络**: 需要访问高德地图API(天气查询插件)
 
 ## 🔧 技术栈
@@ -112,6 +143,7 @@
 | 插件 | 语言 | API依赖 | 存储方式 |
 |------|------|---------|----------|
 | 天气查询 | JavaScript | 高德地图API | 无需存储 |
+| 肚子疼记录 | Python | 无 | autMan存储桶 |
 | 便便记录 | Python | 无 | autMan存储桶 |
 
 ## 📖 文档
@@ -119,6 +151,7 @@
 每个插件目录下都包含详细的README文档:
 
 - [weather/README.md](weather/README.md) - 天气查询插件详细说明
+- [stomachache/README.md](stomachache/README.md) - 肚子疼记录插件详细说明
 - [poop/README.md](poop/README.md) - 便便记录插件详细说明
 
 ## 🎯 开发计划
