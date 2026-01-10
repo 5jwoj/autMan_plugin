@@ -1,96 +1,156 @@
-# autMan 肚子疼记录插件
+# autMan 插件集合
 
-一个功能完整的 autMan 插件，用于记录和追踪肚子疼事件。
+[![GitHub stars](https://img.shields.io/github/stars/5jwoj/autMan_plugin?style=social)](https://github.com/5jwoj/autMan_plugin/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/5jwoj/autMan_plugin?style=social)](https://github.com/5jwoj/autMan_plugin/network/members)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## ✨ 功能特性
+精心打造的 autMan 插件集合,提供实用的生活记录和信息查询功能。
 
-- 📝 **记录肚子疼事件** - 快速记录发生时间
-- 📍 **地点记录** - 记录疼痛发生地点（预设选项 + 自定义输入）
-- 📊 **美观的记录展示** - 按日期分组，颜色标记，统计分析
-- 🗑️ **删除记录** - 支持选择性删除历史记录
-- 🔒 **确认机制** - 重要操作需要 y/n/q 确认
-- 📈 **统计分析** - 自动计算频率、跨度等统计信息
+## 📦 插件列表
 
-## 🎨 显示样式
+### 🌤 天气查询插件 v1.2.0
 
+基于高德地图API的智能天气查询插件,支持全国所有城市区县。
+
+**特性**:
+- ✅ 支持全国3000+城市区县查询
+- ✅ 实时天气 + 未来4天预报
+- ✅ 智能识别城市名称(无需查询编码)
+- ✅ 美观的Emoji图标显示
+- ✅ 自动地理编码查询
+
+**使用示例**:
 ```
-📊 肚子疼记录 (共3条)
-━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🗓️ 1月9日 🟡
-  └─ 12:20
-  └─ 18:30
-  📊 当天2次
-
-🗓️ 1月8日 🟢
-  └─ 10:00
-  📊 当天1次
-
-━━━━━━━━━━━━━━━━━━━━━━━━━
-📈 总体统计
-• 记录时段: 2026-01-08 至 2026-01-09
-• 记录天数: 2天 (跨度2天)
-• 总计次数: 3次
-• 平均频率: 1.50次/天
+北京天气                    # 查询北京实时天气
+海淀区天气                  # 查询北京海淀区天气
+上海浦东新区天气预报        # 查询浦东新区未来4天天气
+天气帮助                    # 显示帮助信息
 ```
 
-**颜色标记**：
-- 🟢 1次/天
-- 🟡 2次/天
-- 🔴 3次及以上
+**查看详情**: [weather/README.md](weather/README.md)
+
+---
+
+### 💩 便便记录插件 v1.1.0
+
+健康生活追踪工具,记录和分析便便事件。
+
+**特性**:
+- ✅ 记录便便事件(含过程评级)
+- ✅ 按日期分组显示历史记录
+- ✅ 详细统计分析(频率、趋势)
+- ✅ 支持删除指定记录
+- ✅ 交互式确认机制
+
+**使用示例**:
+```
+便便                        # 记录一次便便事件
+便便记录                    # 查看所有历史记录
+便便删除                    # 删除指定记录
+便便帮助                    # 显示帮助信息
+```
+
+**查看详情**: [poop/README.md](poop/README.md)
+
+---
 
 ## 🚀 快速开始
 
-### 安装
+### 天气查询插件(JavaScript)
 
-1. 下载 `肚子疼.py` 文件
-2. 上传到 autMan 服务器：
+1. **下载插件文件**
    ```bash
-   scp 肚子疼.py root@服务器:/root/aut/plugin/scripts/
+   wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/weather/天气查询.js
    ```
-3. 设置权限：
+
+2. **上传到autMan**
    ```bash
-   chmod 755 /root/aut/plugin/scripts/肚子疼.py
+   scp 天气查询.js root@服务器:/root/aut/plugin/replies/
    ```
-4. 重启 autMan：
+
+3. **配置API Key**
+   - 访问 [高德开放平台](https://console.amap.com)
+   - 注册并创建应用
+   - 获取 Web服务 API Key
+   - 在autMan插件管理界面配置
+
+4. **重启autMan**
    ```bash
    systemctl restart autman
    ```
 
-### 使用
+### 便便记录插件(Python)
 
-- `肚子疼` - 记录一次肚子疼事件
-- `肚子疼记录` - 查看所有历史记录
-- `肚子疼删除` - 删除指定的历史记录
-- `肚子疼帮助` - 显示帮助信息
+1. **下载插件文件**
+   ```bash
+   wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/poop/便便.py
+   ```
 
-## 📋 版本信息
+2. **上传到autMan**
+   ```bash
+   scp 便便.py root@服务器:/root/aut/plugin/scripts/
+   ```
 
-**当前版本**: v1.2.0
+3. **设置权限**
+   ```bash
+   chmod 755 /root/aut/plugin/scripts/便便.py
+   ```
 
-查看 [CHANGELOG.md](CHANGELOG.md) 了解详细更新历史。
+4. **重启autMan**
+   ```bash
+   systemctl restart autman
+   ```
+
+## 📋 系统要求
+
+- **autMan**: 支持Python和JavaScript插件的版本
+- **Python**: 3.6+ (便便记录插件)
+- **网络**: 需要访问高德地图API(天气查询插件)
+
+## 🔧 技术栈
+
+| 插件 | 语言 | API依赖 | 存储方式 |
+|------|------|---------|----------|
+| 天气查询 | JavaScript | 高德地图API | 无需存储 |
+| 便便记录 | Python | 无 | autMan存储桶 |
 
 ## 📖 文档
 
-- [Python版本部署指南.md](Python版本部署指南.md) - 详细部署说明
-- [配置指南.md](配置指南.md) - ES5 版本配置（可选）
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 问题排查指南
+每个插件目录下都包含详细的README文档:
 
-## 🔧 技术说明
+- [weather/README.md](weather/README.md) - 天气查询插件详细说明
+- [poop/README.md](poop/README.md) - 便便记录插件详细说明
 
-- **语言**: Python 3
-- **方式**: middleware 中间件
-- **规则**: 在代码头部定义，无需后台配置
-- **存储**: autMan 存储桶
+## 🎯 开发计划
 
-## 📄 许可证
-
-MIT License
+- [ ] 添加更多生活记录插件
+- [ ] 支持数据导出功能
+- [ ] 添加可视化图表
+- [ ] 支持多语言
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request！
+欢迎贡献代码、报告问题或提出建议!
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 
 ## 📞 支持
 
-如有问题，请在 GitHub 提交 Issue。
+- 提交 [Issue](https://github.com/5jwoj/autMan_plugin/issues)
+- 查看 [Wiki](https://github.com/5jwoj/autMan_plugin/wiki)
+
+## ⭐ Star History
+
+如果这个项目对你有帮助,请给个 Star ⭐️
+
+---
+
+**Made with ❤️ by [5jwoj](https://github.com/5jwoj)**
