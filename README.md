@@ -77,6 +77,30 @@
 
 ---
 
+### 🧠 性格测试插件 v1.2.0
+
+基于MBTI理论的性格测试插件,通过16道精选问题帮助用户了解自己的性格类型,支持查询任意MBTI类型的详细解释。
+
+**特性**:
+- ✅ 基于MBTI四维度理论
+- ✅ 仅需16道题,3-5分钟完成
+- ✅ 16种性格类型详细分析
+- ✅ 保存测试历史记录
+- ✅ 交互友好,支持中途退出
+- ✅ 直接发送MBTI类型查看解释
+
+**使用示例**:
+```
+性格测试                    # 开始新的性格测试
+性格测试记录                # 查看历史测试记录
+性格测试删除                # 删除指定记录
+性格测试帮助                # 显示帮助信息
+```
+
+**查看详情**: [personality/README.md](personality/README.md)
+
+---
+
 ## 🚀 快速开始
 
 ### 天气查询插件(JavaScript)
@@ -104,7 +128,7 @@
 
 ### 健康记录插件(Python)
 
-适用于肚子疼记录和便便记录插件:
+适用于肚子疼记录、便便记录和性格测试插件:
 
 1. **下载插件文件**
    ```bash
@@ -113,18 +137,23 @@
    
    # 便便插件
    wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/poop/便便.py
+   
+   # 性格测试插件
+   wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/personality/性格测试.py
    ```
 
 2. **上传到autMan**
    ```bash
    scp 肚子疼.py root@服务器:/root/aut/plugin/scripts/
    scp 便便.py root@服务器:/root/aut/plugin/scripts/
+   scp 性格测试.py root@服务器:/root/aut/plugin/scripts/
    ```
 
 3. **设置权限**
    ```bash
    chmod 755 /root/aut/plugin/scripts/肚子疼.py
    chmod 755 /root/aut/plugin/scripts/便便.py
+   chmod 755 /root/aut/plugin/scripts/性格测试.py
    ```
 
 4. **重启autMan**
@@ -145,6 +174,7 @@
 | 天气查询 | JavaScript | 高德地图API | 无需存储 |
 | 肚子疼记录 | Python | 无 | autMan存储桶 |
 | 便便记录 | Python | 无 | autMan存储桶 |
+| 性格测试 | Python | 无 | autMan存储桶 |
 
 ## 📖 文档
 
@@ -153,6 +183,7 @@
 - [weather/README.md](weather/README.md) - 天气查询插件详细说明
 - [stomachache/README.md](stomachache/README.md) - 肚子疼记录插件详细说明
 - [poop/README.md](poop/README.md) - 便便记录插件详细说明
+- [personality/README.md](personality/README.md) - 性格测试插件详细说明
 
 ## 🎯 开发计划
 
