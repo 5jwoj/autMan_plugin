@@ -2,14 +2,14 @@
 # [rule: ^体重(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: v2.1.0]
+# [version: v2.1.1]
 
 """
 autMan 插件 - 体重记录
 
 功能: 体重记录、趋势分析、目标管理
 作者: AI Assistant
-版本: v2.1.0
+版本: v2.1.1
 日期: 2026-01-12
 
 使用说明:
@@ -40,7 +40,7 @@ from datetime import datetime
 # 配置常量
 BUCKET_NAME = "weight_tracker"
 PENDING_ACTION_BUCKET = "weight_pending_action"
-VERSION = "v2.1.0"
+VERSION = "v2.1.1"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -596,25 +596,19 @@ class WeightPlugin:
                             self.sender.reply("✅ 已退出详情浏览模式")
                             return
             
-            # 2. 常规命令匹配
+            # 2. 常规命令匹配 (注意:具体命令要放在通用命令之前)
             if self.message == "体重帮助":
                 self.show_help()
-            elif self.message == "体重记录":
-                self.view_records()
             elif self.message == "体重详细记录":
                 self.show_detailed_records()
+            elif self.message == "体重记录":
+                self.view_records()
             elif self.message == "体重统计":
                 self.show_statistics()
             elif self.message == "目标进度":
                 self.show_target_progress()
             elif self.message == "清空体重记录":
                 self.clear_all_records()
-            elif "设置目标体重" in self.message or "设定目标体重" in self.message:
-                match = re.search(r'(?:设置|设定)目标体重\s*([\d.]+)', self.message)
-                if match:
-                    self.set_target(match.group(1))
-                else:
-                    self.sender.reply("❓ 请输入目标体重数值 (如: 设置目标体重 60)")
             elif "删除体重记录" in self.message:
                 match = re.search(r'删除体重记录\s+(\d+)', self.message)
                 if match:
@@ -627,8 +621,14 @@ class WeightPlugin:
                     self.modify_record(match.group(1), match.group(2))
                 else:
                     self.sender.reply("❓ 指令格式错误\n正确格式: 修改体重记录 [编号] [新数值]\n示例: 修改体重记录 1 65.5")
+            elif "设置目标体重" in self.message or "设定目标体重" in self.message:
+                match = re.search(r'(?:设置|设定)目标体重\s*([\d.]+)', self.message)
+                if match:
+                    self.set_target(match.group(1))
+                else:
+                    self.sender.reply("❓ 请输入目标体重数值 (如: 设置目标体重 60)")
             elif self.message.startswith("体重"):
-                # 匹配 "体重 65.5" 格式
+                # 匹配 "体重 65.5" 格式 (放在最后,避免拦截其他体重相关命令)
                 match = re.search(r'体重\s*([\d.]+)', self.message)
                 if match:
                     self.record_weight(match.group(1))
