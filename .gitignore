@@ -61,3 +61,6 @@ Thumbs.db
 *.log
 temp/
 tmp/
+
+# Private plugins
+ydyc/

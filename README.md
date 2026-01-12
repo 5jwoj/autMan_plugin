@@ -101,28 +101,6 @@
 
 ---
 
-### 🔐 YDYC登录管理插件 v1.0.1
-
-YDYC(一点一存)账号管理插件,支持添加账号到青龙环境变量并查询积分。
-
-**特性**:
-- ✅ 账号登录验证
-- ✅ 自动保存到青龙环境变量
-- ✅ 多账号支持(用&分隔)
-- ✅ 积分查询功能
-- ✅ 用户隐私保护(只能查询自己的账号)
-
-**使用示例**:
-```
-ydyc登录                    # 添加YDYC账号
-ydyc查询                    # 查询当前积分
-ydyc帮助                    # 显示帮助信息
-```
-
-**查看详情**: [ydyc/README.md](ydyc/README.md)
-
----
-
 ### ⚖️ 体重记录插件 v2.1.0
 
 智能体重管理工具,支持记录、统计分析和可视化曲线图。
@@ -235,7 +213,6 @@ ydyc帮助                    # 显示帮助信息
 | 肚子疼记录 | Python | 无 | autMan存储桶 |
 | 便便记录 | Python | 无 | autMan存储桶 |
 | 性格测试 | Python | 无 | autMan存储桶 |
-| YDYC登录 | Python | YDYC API + 青龙API | 青龙环境变量 + autMan存储桶 |
 | 体重记录 | Python | matplotlib | autMan存储桶 |
 
 ## 📖 文档
@@ -246,7 +223,6 @@ ydyc帮助                    # 显示帮助信息
 - [stomachache/README.md](stomachache/README.md) - 肚子疼记录插件详细说明
 - [poop/README.md](poop/README.md) - 便便记录插件详细说明
 - [personality/README.md](personality/README.md) - 性格测试插件详细说明
-- [ydyc/README.md](ydyc/README.md) - YDYC登录管理插件详细说明
 - [weight_tracker/README.md](weight_tracker/README.md) - 体重记录插件详细说明
 
 ## 🎯 开发计划
