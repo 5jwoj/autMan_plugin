@@ -2,14 +2,14 @@
 # [rule: ^体重(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: v2.1.3]
+# [version: v2.0.0]
 
 """
 autMan 插件 - 体重记录
 
 功能: 体重记录、趋势分析、目标管理
 作者: AI Assistant
-版本: v2.1.3
+版本: v2.0.0
 日期: 2026-01-12
 
 使用说明:
@@ -25,18 +25,11 @@ import middleware
 import time
 import json
 import re
-import os
-import tempfile
 from datetime import datetime
-import matplotlib
-matplotlib.use('Agg')  # 使用非GUI后端
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from matplotlib.font_manager import FontProperties
 
 # 配置常量
 BUCKET_NAME = "weight_tracker"
-VERSION = "v2.1.3"
+VERSION = "v2.0.0"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -159,80 +152,6 @@ class WeightPlugin:
         
         self.sender.reply("❓ 无效的输入,请重新操作")
     
-    
-    def generate_weight_chart(self, data):
-        """生成体重曲线图"""
-        try:
-            if not data['records']:
-                return None
-            
-            # 按日期排序
-            sorted_records = sorted(data['records'], key=lambda x: x['date'])
-            
-            # 提取日期和体重数据
-            dates = [datetime.strptime(r['date'], '%Y-%m-%d') for r in sorted_records]
-            weights = [r['weight'] for r in sorted_records]
-            
-            # 禁用所有matplotlib警告
-            import warnings
-            warnings.filterwarnings('ignore')
-            
-            # 使用默认字体,避免中文字体问题
-            plt.rcParams['font.family'] = 'DejaVu Sans'
-            plt.rcParams['axes.unicode_minus'] = False
-            
-            # 创建图表
-            fig, ax = plt.subplots(figsize=(12, 6))
-            
-            # 绘制曲线
-            ax.plot(dates, weights, marker='o', linestyle='-', linewidth=2, 
-                   markersize=8, color='#4A90E2', label='Weight Trend')
-            
-            # 如果有目标体重,绘制目标线
-            if data.get('target'):
-                ax.axhline(y=data['target'], color='#E74C3C', linestyle='--', 
-                          linewidth=2, label=f'Target: {data["target"]}kg')
-            
-            # 设置标题和标签(使用英文避免字体问题)
-            ax.set_title('Weight Tracking Chart', fontsize=16, fontweight='bold', pad=20)
-            ax.set_xlabel('Date', fontsize=12)
-            ax.set_ylabel('Weight (kg)', fontsize=12)
-            
-            # 格式化x轴日期
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
-            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-            plt.xticks(rotation=45)
-            
-            # 添加网格
-            ax.grid(True, linestyle='--', alpha=0.3)
-            
-            # 添加图例
-            ax.legend(loc='best', fontsize=10)
-            
-            # 在每个数据点上标注数值
-            for i, (date, weight) in enumerate(zip(dates, weights)):
-                ax.annotate(f'{weight}kg', 
-                           xy=(date, weight),
-                           xytext=(0, 10),
-                           textcoords='offset points',
-                           ha='center',
-                           fontsize=9,
-                           bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.3))
-            
-            # 调整布局
-            plt.tight_layout()
-            
-            # 保存到临时文件
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-            plt.savefig(temp_file.name, dpi=150, bbox_inches='tight')
-            plt.close()
-            
-            return temp_file.name
-            
-        except Exception as e:
-            print(f"[生成图表失败] {e}")
-            return None
-    
     def view_records(self):
         """查看记录"""
         data = self.get_data()
@@ -240,9 +159,6 @@ class WeightPlugin:
         if not data['records']:
             self.sender.reply("📋 暂无体重记录\n\n💡 发送「体重 65.5」开始记录")
             return
-        
-        # 生成曲线图
-        chart_path = self.generate_weight_chart(data)
         
         # 按日期排序(最新在前)
         sorted_records = sorted(data['records'], key=lambda x: x['date'], reverse=True)
@@ -284,35 +200,7 @@ class WeightPlugin:
             else:
                 message += f"📊 还需增重: {abs(diff):.1f}kg"
         
-        # 发送文字消息
         self.sender.reply(message)
-        
-        # 如果图表生成成功,发送图片
-        if chart_path:
-            try:
-                print(f"[图表路径] {chart_path}")
-                print(f"[文件是否存在] {os.path.exists(chart_path)}")
-                if os.path.exists(chart_path):
-                    print(f"[文件大小] {os.path.getsize(chart_path)} bytes")
-                
-                # 使用sendImage发送图片
-                self.sender.sendImage(f"file://{chart_path}")
-                print("[图表发送成功]")
-                
-                # 清理临时文件
-                try:
-                    os.unlink(chart_path)
-                    print("[临时文件已清理]")
-                except Exception as cleanup_err:
-                    print(f"[清理临时文件失败] {cleanup_err}")
-                    
-            except Exception as e:
-                import traceback
-                error_detail = traceback.format_exc()
-                print(f"[发送图表失败] {e}")
-                print(f"[错误详情] {error_detail}")
-                # 不显示技术错误,只提示用户图表功能暂时不可用
-                self.sender.reply("📊 图表已生成但发送失败,数据记录正常")
     
     def show_statistics(self):
         """显示统计信息"""
@@ -453,7 +341,7 @@ class WeightPlugin:
         help_text += "本插件帮助您记录和追踪体重变化\n\n"
         help_text += "🔹 命令列表：\n"
         help_text += "• 体重 65.5 - 记录当前体重\n"
-        help_text += "• 体重记录 - 查看最近记录(含曲线图)\n"
+        help_text += "• 体重记录 - 查看最近记录\n"
         help_text += "• 体重统计 - 查看统计信息\n"
         help_text += "• 设置目标体重 60 - 设定目标体重\n"
         help_text += "• 目标进度 - 查看目标进度\n"
