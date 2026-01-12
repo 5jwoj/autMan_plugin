@@ -101,6 +101,54 @@
 
 ---
 
+### 🔐 YDYC登录管理插件 v1.0.1
+
+YDYC(一点一存)账号管理插件,支持添加账号到青龙环境变量并查询积分。
+
+**特性**:
+- ✅ 账号登录验证
+- ✅ 自动保存到青龙环境变量
+- ✅ 多账号支持(用&分隔)
+- ✅ 积分查询功能
+- ✅ 用户隐私保护(只能查询自己的账号)
+
+**使用示例**:
+```
+ydyc登录                    # 添加YDYC账号
+ydyc查询                    # 查询当前积分
+ydyc帮助                    # 显示帮助信息
+```
+
+**查看详情**: [ydyc/README.md](ydyc/README.md)
+
+---
+
+### ⚖️ 体重记录插件 v2.1.0
+
+智能体重管理工具,支持记录、统计分析和可视化曲线图。
+
+**特性**:
+- ✅ 记录每日体重(带确认机制)
+- ✅ 查看最近记录(最近7天)
+- ✅ 统计分析(最高/最低/平均/变化趋势)
+- ✅ 目标体重管理和进度追踪
+- ✅ 自动生成体重变化曲线图 🎨
+- ✅ 可视化图表(matplotlib)
+
+**使用示例**:
+```
+体重 65.5                   # 记录当前体重
+体重记录                    # 查看记录 + 曲线图
+体重统计                    # 查看统计信息
+设置目标体重 60             # 设定目标体重
+目标进度                    # 查看目标进度
+体重帮助                    # 显示帮助信息
+```
+
+**查看详情**: [weight_tracker/README.md](weight_tracker/README.md)
+
+---
+
 ## 🚀 快速开始
 
 ### 天气查询插件(JavaScript)
@@ -128,9 +176,15 @@
 
 ### 健康记录插件(Python)
 
-适用于肚子疼记录、便便记录和性格测试插件:
+适用于肚子疼记录、便便记录、性格测试和体重记录插件:
 
-1. **下载插件文件**
+1. **安装依赖** (体重记录插件需要)
+   ```bash
+   # 体重记录插件需要matplotlib
+   pip3 install matplotlib
+   ```
+
+2. **下载插件文件**
    ```bash
    # 肚子疼插件
    wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/stomachache/肚子疼.py
@@ -140,31 +194,37 @@
    
    # 性格测试插件
    wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/personality/性格测试.py
+   
+   # 体重记录插件
+   wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/weight_tracker/体重记录.py
    ```
 
-2. **上传到autMan**
+3. **上传到autMan**
    ```bash
    scp 肚子疼.py root@服务器:/root/aut/plugin/scripts/
    scp 便便.py root@服务器:/root/aut/plugin/scripts/
    scp 性格测试.py root@服务器:/root/aut/plugin/scripts/
+   scp 体重记录.py root@服务器:/root/aut/plugin/scripts/
    ```
 
-3. **设置权限**
+4. **设置权限**
    ```bash
    chmod 755 /root/aut/plugin/scripts/肚子疼.py
    chmod 755 /root/aut/plugin/scripts/便便.py
    chmod 755 /root/aut/plugin/scripts/性格测试.py
+   chmod 755 /root/aut/plugin/scripts/体重记录.py
    ```
 
-4. **重启autMan**
+5. **重启autMan**
    ```bash
    systemctl restart autman
    ```
 
-## 📋 系统要求
+## 📍 系统要求
 
 - **autMan**: 支持Python和JavaScript插件的版本
 - **Python**: 3.6+ (健康记录插件)
+- **matplotlib**: 最新版本 (体重记录插件)
 - **网络**: 需要访问高德地图API(天气查询插件)
 
 ## 🔧 技术栈
@@ -175,6 +235,8 @@
 | 肚子疼记录 | Python | 无 | autMan存储桶 |
 | 便便记录 | Python | 无 | autMan存储桶 |
 | 性格测试 | Python | 无 | autMan存储桶 |
+| YDYC登录 | Python | YDYC API + 青龙API | 青龙环境变量 + autMan存储桶 |
+| 体重记录 | Python | matplotlib | autMan存储桶 |
 
 ## 📖 文档
 
@@ -184,12 +246,15 @@
 - [stomachache/README.md](stomachache/README.md) - 肚子疼记录插件详细说明
 - [poop/README.md](poop/README.md) - 便便记录插件详细说明
 - [personality/README.md](personality/README.md) - 性格测试插件详细说明
+- [ydyc/README.md](ydyc/README.md) - YDYC登录管理插件详细说明
+- [weight_tracker/README.md](weight_tracker/README.md) - 体重记录插件详细说明
 
 ## 🎯 开发计划
 
+- [x] 添加体重记录插件 (已完成 v2.1.0)
+- [x] 支持可视化图表 (体重曲线图)
 - [ ] 添加更多生活记录插件
 - [ ] 支持数据导出功能
-- [ ] 添加可视化图表
 - [ ] 支持多语言
 
 ## 🤝 贡献
