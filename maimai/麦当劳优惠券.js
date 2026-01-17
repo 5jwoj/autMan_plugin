@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.2.2]
+//[version:1.2.3]
 
 /**
  * 麦当劳优惠券管理插件
@@ -930,6 +930,9 @@ function main() {
 
     var subCommand = match[1].trim();
     var args = subCommand.split(/\s+/);
+
+    // DEBUG: 显示解析结果
+    sendText("[DEBUG] 子命令='" + subCommand + "', args[0]='" + args[0] + "'");
 
     // 帮助命令
     if (args[0] === "帮助") {
