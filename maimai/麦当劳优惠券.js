@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.1.1]
+//[version:1.1.2]
 
 /**
  * 麦当劳优惠券管理插件
@@ -282,7 +282,7 @@ function saveUserState(userId, state) {
  * 清除用户状态
  */
 function clearUserState(userId) {
-    bucketDel(USER_STATE_KEY, userId);
+    bucketSet(USER_STATE_KEY, userId, "");
 }
 
 /**
