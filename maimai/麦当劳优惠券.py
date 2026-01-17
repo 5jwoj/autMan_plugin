@@ -3,7 +3,7 @@
 # [cron: 0 9 * * *]
 # [admin: false]
 # [price: 0.00]
-# [version: 2.0.2]
+# [version: 2.0.3]
 
 """
 autMan 插件 - 麦当劳优惠券管理（Python 版本）
@@ -248,11 +248,23 @@ class MaiMaiPlugin:
         
         import re
         
-        # 移除 HTML 图片标签（包括换行的）
-        text = re.sub(r'<\s*img[^>]*>', '', text, flags=re.IGNORECASE | re.DOTALL)
+        # 提取并转换 HTML 图片标签为文本链接
+        def replace_img_tag(match):
+            img_tag = match.group(0)
+            # 提取 src 属性
+            src_match = re.search(r'src=["\']([^"\']+)["\']', img_tag, re.IGNORECASE)
+            if src_match:
+                url = src_match.group(1)
+                # 提取 alt 属性（如果有）
+                alt_match = re.search(r'alt=["\']([^"\']+)["\']', img_tag, re.IGNORECASE)
+                alt_text = alt_match.group(1) if alt_match else "查看图片"
+                return f"[{alt_text}]({url})"
+            return ""
         
-        # 移除 Markdown 图片语法
-        text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+        text = re.sub(r'<\s*img[^>]*>', replace_img_tag, text, flags=re.IGNORECASE | re.DOTALL)
+        
+        # Markdown 图片语法已经是 ![alt](url) 格式，转换为 [alt](url)
+        text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'[\1](\2)', text)
         
         # 移除行尾的反斜杠
         text = re.sub(r'\\\s*$', '', text, flags=re.MULTILINE)
