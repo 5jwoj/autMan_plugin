@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.1.2]
+//[version:1.1.3]
 
 /**
  * 麦当劳优惠券管理插件
@@ -265,10 +265,14 @@ function saveUserData(userId, userData) {
  */
 function getUserState(userId) {
     var state = bucketGet(USER_STATE_KEY, userId);
-    if (!state) {
+    if (!state || state === "") {
         return null;
     }
-    return JSON.parse(state);
+    try {
+        return JSON.parse(state);
+    } catch (e) {
+        return null;
+    }
 }
 
 /**
