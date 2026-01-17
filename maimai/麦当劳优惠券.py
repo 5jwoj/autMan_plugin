@@ -3,7 +3,7 @@
 # [cron: 0 9 * * *]
 # [admin: false]
 # [price: 0.00]
-# [version: 2.0.3]
+# [version: 2.1.0]
 
 """
 autMan 插件 - 麦当劳优惠券管理（Python 版本）
@@ -577,7 +577,27 @@ class MaiMaiPlugin:
             client = MCPClient(active_account['data']['token'])
             result = client.call_tool("available-coupons", {})
             formatted = self.format_tool_result(result)
+            
+            # 显示查询结果
             self.sender.reply(f"🎫 可领优惠券\n━━━━━━━━━━━━━━━\n\n{formatted}")
+            
+            # 询问是否要一键领取
+            self.sender.reply("\n💡 是否要一键领取所有优惠券？\n\ny - 立即领取\nn - 暂不领取")
+            
+            user_input = self.sender.listen(INPUT_TIMEOUT)
+            
+            if user_input and user_input.strip().lower() == "y":
+                # 执行一键领取
+                self.sender.reply("🎁 正在领取优惠券...")
+                claim_result = client.call_tool("auto-bind-coupons", {})
+                claim_formatted = self.format_tool_result(claim_result)
+                self.sender.reply(f"✅ 领券结果\n━━━━━━━━━━━━━━━\n\n{claim_formatted}")
+            elif user_input and user_input.strip().lower() == "n":
+                self.sender.reply("👌 已取消领取")
+            else:
+                # 超时或其他输入，不做处理
+                pass
+                
         except Exception as e:
             self.sender.reply(f"❌ 查询失败: {e}")
     
