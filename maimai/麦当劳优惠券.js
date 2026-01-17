@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.0.1]
+//[version:1.1.0]
 
 /**
  * 麦当劳优惠券管理插件
@@ -21,6 +21,7 @@ var MCP_URL = "https://mcp.mcd.cn/mcp-servers/mcd-mcp";
 var MCP_PROTOCOL_VERSION = "2025-06-18";
 var SESSION_CACHE_KEY = "maimai_sessions"; // 会话缓存
 var USER_DATA_KEY = "maimai_users"; // 用户数据
+var USER_STATE_KEY = "maimai_user_state"; // 用户状态（用于交互式菜单）
 
 // ==================== MCP 客户端 ====================
 
@@ -260,6 +261,31 @@ function saveUserData(userId, userData) {
 }
 
 /**
+ * 获取用户状态
+ */
+function getUserState(userId) {
+    var state = bucketGet(USER_STATE_KEY, userId);
+    if (!state) {
+        return null;
+    }
+    return JSON.parse(state);
+}
+
+/**
+ * 保存用户状态
+ */
+function saveUserState(userId, state) {
+    bucketSet(USER_STATE_KEY, userId, JSON.stringify(state));
+}
+
+/**
+ * 清除用户状态
+ */
+function clearUserState(userId) {
+    bucketDel(USER_STATE_KEY, userId);
+}
+
+/**
  * 添加或更新账号
  */
 function addOrUpdateAccount(userId, accountName, token, label) {
@@ -434,10 +460,7 @@ function showHelp() {
     message += "• 麦当劳 领券 - 一键领取所有优惠券\n";
     message += "• 麦当劳 我的优惠券 - 查看已领优惠券\n\n";
     message += "👤 账号管理:\n";
-    message += "• 麦当劳 添加账号 名称 Token - 添加账号\n";
-    message += "• 麦当劳 切换账号 名称 - 切换活跃账号\n";
-    message += "• 麦当劳 账号列表 - 查看所有账号\n";
-    message += "• 麦当劳 删除账号 名称 - 删除账号\n\n";
+    message += "• 麦当劳 管理 - 进入账号管理菜单\n\n";
     message += "⏰ 自动领券:\n";
     message += "• 麦当劳 开启自动领券 - 每天自动领券\n";
     message += "• 麦当劳 关闭自动领券 - 关闭自动领券\n";
@@ -470,11 +493,11 @@ function showMainMenu() {
         message += "• 麦当劳 优惠券\n";
         message += "• 麦当劳 领券\n";
         message += "• 麦当劳 我的优惠券\n";
+        message += "• 麦当劳 管理\n";
     } else {
         message += "⚠️ 未配置账号\n\n";
-        message += "请先添加账号:\n";
-        message += "麦当劳 添加账号 我的账号 YOUR_TOKEN\n\n";
-        message += "获取 Token:\n";
+        message += "发送「麦当劳 管理」进入账号管理\n";
+        message += "\n获取 Token:\n";
         message += "https://open.mcd.cn/mcp/doc\n";
     }
 
@@ -483,67 +506,225 @@ function showMainMenu() {
 }
 
 /**
- * 处理账号管理命令
+ * 显示账号管理菜单
  */
-function handleAccountCommand(args) {
+function showManageMenu() {
     var userId = GetUserID();
     var userData = getUserData(userId);
+    var activeAccount = getActiveAccount(userId);
 
-    if (args[0] === "添加账号" && args.length >= 3) {
-        var accountName = args[1];
-        var token = args[2];
-        var label = args.length > 3 ? args.slice(3).join(" ") : accountName;
+    var message = "👤 账号管理\n";
+    message += "━━━━━━━━━━━━━━━\n\n";
 
-        addOrUpdateAccount(userId, accountName, token, label);
-        sendText("✅ 账号「" + label + "」添加成功！\n\n发送「麦当劳 优惠券」开始使用");
+    if (activeAccount) {
+        message += "当前账号: " + activeAccount.data.label + "\n\n";
+    }
+
+    message += "请选择操作:\n";
+    message += "1️⃣ 添加账号\n";
+    message += "2️⃣ 切换账号\n";
+    message += "3️⃣ 查看账号列表\n";
+    message += "4️⃣ 删除账号\n";
+    message += "0️⃣ 返回主菜单\n\n";
+    message += "请回复数字选择操作";
+
+    // 保存用户状态
+    saveUserState(userId, {
+        menu: "manage",
+        step: "select"
+    });
+
+    sendText(message);
+}
+
+/**
+ * 处理账号管理交互
+ */
+function handleManageInteraction(content) {
+    var userId = GetUserID();
+    var userData = getUserData(userId);
+    var state = getUserState(userId);
+
+    if (!state || state.menu !== "manage") {
+        showManageMenu();
         return;
     }
 
-    if (args[0] === "切换账号" && args.length >= 2) {
-        var accountName = args[1];
-        if (switchAccount(userId, accountName)) {
-            var account = userData.accounts[accountName];
-            sendText("✅ 已切换到账号「" + account.label + "」");
-        } else {
-            sendText("❌ 账号不存在\n\n发送「麦当劳 账号列表」查看所有账号");
-        }
-        return;
-    }
-
-    if (args[0] === "账号列表") {
-        var accountNames = Object.keys(userData.accounts);
-        if (accountNames.length === 0) {
-            sendText("❌ 暂无账号\n\n发送「麦当劳 添加账号 名称 Token」添加账号");
+    // 主菜单选择
+    if (state.step === "select") {
+        if (content === "0") {
+            clearUserState(userId);
+            showMainMenu();
             return;
         }
 
-        var message = "👤 账号列表\n━━━━━━━━━━━━━━━\n\n";
-        for (var i = 0; i < accountNames.length; i++) {
-            var name = accountNames[i];
-            var account = userData.accounts[name];
-            var isActive = name === userData.activeAccount;
-            message += (isActive ? "✅ " : "　 ") + account.label;
-            if (isActive) {
-                message += " (当前)";
+        if (content === "1") {
+            // 添加账号
+            saveUserState(userId, {
+                menu: "manage",
+                step: "add_name"
+            });
+            sendText("📝 添加账号\n━━━━━━━━━━━━━━━\n\n请输入账号名称（如：主账号）\n\n回复 0 取消");
+            return;
+        }
+
+        if (content === "2") {
+            // 切换账号
+            var accountNames = Object.keys(userData.accounts);
+            if (accountNames.length === 0) {
+                sendText("❌ 暂无账号\n\n请先添加账号");
+                clearUserState(userId);
+                return;
             }
-            message += "\n";
+
+            var message = "🔄 切换账号\n━━━━━━━━━━━━━━━\n\n";
+            for (var i = 0; i < accountNames.length; i++) {
+                var name = accountNames[i];
+                var account = userData.accounts[name];
+                var isActive = name === userData.activeAccount;
+                message += (i + 1) + "️⃣ " + account.label;
+                if (isActive) {
+                    message += " ✅";
+                }
+                message += "\n";
+            }
+            message += "0️⃣ 取消\n\n请回复数字选择账号";
+
+            saveUserState(userId, {
+                menu: "manage",
+                step: "switch",
+                accounts: accountNames
+            });
+            sendText(message);
+            return;
         }
-        message += "\n发送「麦当劳 切换账号 名称」切换账号";
-        sendText(message);
+
+        if (content === "3") {
+            // 查看账号列表
+            var accountNames = Object.keys(userData.accounts);
+            if (accountNames.length === 0) {
+                sendText("❌ 暂无账号\n\n发送「麦当劳 管理」添加账号");
+                clearUserState(userId);
+                return;
+            }
+
+            var message = "👤 账号列表\n━━━━━━━━━━━━━━━\n\n";
+            for (var i = 0; i < accountNames.length; i++) {
+                var name = accountNames[i];
+                var account = userData.accounts[name];
+                var isActive = name === userData.activeAccount;
+                message += (isActive ? "✅ " : "　 ") + account.label + "\n";
+            }
+            clearUserState(userId);
+            sendText(message);
+            return;
+        }
+
+        if (content === "4") {
+            // 删除账号
+            var accountNames = Object.keys(userData.accounts);
+            if (accountNames.length === 0) {
+                sendText("❌ 暂无账号");
+                clearUserState(userId);
+                return;
+            }
+
+            var message = "🗑 删除账号\n━━━━━━━━━━━━━━━\n\n";
+            for (var i = 0; i < accountNames.length; i++) {
+                var name = accountNames[i];
+                var account = userData.accounts[name];
+                message += (i + 1) + "️⃣ " + account.label + "\n";
+            }
+            message += "0️⃣ 取消\n\n请回复数字选择要删除的账号";
+
+            saveUserState(userId, {
+                menu: "manage",
+                step: "delete",
+                accounts: accountNames
+            });
+            sendText(message);
+            return;
+        }
+
+        sendText("❌ 无效选择\n\n请回复 0-4 的数字");
         return;
     }
 
-    if (args[0] === "删除账号" && args.length >= 2) {
-        var accountName = args[1];
-        if (deleteAccount(userId, accountName)) {
-            sendText("✅ 账号已删除");
-        } else {
-            sendText("❌ 账号不存在");
+    // 添加账号 - 输入名称
+    if (state.step === "add_name") {
+        if (content === "0") {
+            clearUserState(userId);
+            sendText("已取消");
+            return;
         }
+
+        saveUserState(userId, {
+            menu: "manage",
+            step: "add_token",
+            accountName: content
+        });
+        sendText("📝 请输入 MCP Token\n\n回复 0 取消");
         return;
     }
 
-    sendText("❌ 未知命令\n\n发送「麦当劳 帮助」查看使用说明");
+    // 添加账号 - 输入 Token
+    if (state.step === "add_token") {
+        if (content === "0") {
+            clearUserState(userId);
+            sendText("已取消");
+            return;
+        }
+
+        var accountName = state.accountName;
+        addOrUpdateAccount(userId, accountName, content, accountName);
+        clearUserState(userId);
+        sendText("✅ 账号「" + accountName + "」添加成功！\n\n发送「麦当劳 优惠券」开始使用");
+        return;
+    }
+
+    // 切换账号
+    if (state.step === "switch") {
+        if (content === "0") {
+            clearUserState(userId);
+            sendText("已取消");
+            return;
+        }
+
+        var index = parseInt(content) - 1;
+        if (isNaN(index) || index < 0 || index >= state.accounts.length) {
+            sendText("❌ 无效选择");
+            return;
+        }
+
+        var accountName = state.accounts[index];
+        switchAccount(userId, accountName);
+        var account = userData.accounts[accountName];
+        clearUserState(userId);
+        sendText("✅ 已切换到账号「" + account.label + "」");
+        return;
+    }
+
+    // 删除账号
+    if (state.step === "delete") {
+        if (content === "0") {
+            clearUserState(userId);
+            sendText("已取消");
+            return;
+        }
+
+        var index = parseInt(content) - 1;
+        if (isNaN(index) || index < 0 || index >= state.accounts.length) {
+            sendText("❌ 无效选择");
+            return;
+        }
+
+        var accountName = state.accounts[index];
+        var account = userData.accounts[accountName];
+        deleteAccount(userId, accountName);
+        clearUserState(userId);
+        sendText("✅ 账号「" + account.label + "」已删除");
+        return;
+    }
 }
 
 /**
@@ -699,10 +880,18 @@ function cronTask() {
 
 function main() {
     var content = GetContent().trim();
+    var userId = GetUserID();
 
     // 检查是否是定时任务触发（定时任务时消息内容为空）
     if (!content || content === "") {
         cronTask();
+        return;
+    }
+
+    // 检查用户是否在交互式菜单中
+    var state = getUserState(userId);
+    if (state && state.menu === "manage") {
+        handleManageInteraction(content);
         return;
     }
 
@@ -728,9 +917,9 @@ function main() {
         return;
     }
 
-    // 账号管理命令
-    if (["添加账号", "切换账号", "账号列表", "删除账号"].indexOf(args[0]) !== -1) {
-        handleAccountCommand(args);
+    // 账号管理菜单
+    if (args[0] === "管理") {
+        showManageMenu();
         return;
     }
 
