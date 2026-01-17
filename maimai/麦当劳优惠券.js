@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.0.0]
+//[version:1.0.1]
 
 /**
  * 麦当劳优惠券管理插件
@@ -700,8 +700,8 @@ function cronTask() {
 function main() {
     var content = GetContent().trim();
 
-    // 检查是否是定时任务触发
-    if (IsCron()) {
+    // 检查是否是定时任务触发（定时任务时消息内容为空）
+    if (!content || content === "") {
         cronTask();
         return;
     }
@@ -752,3 +752,4 @@ function main() {
 
 // 执行主函数
 main();
+
