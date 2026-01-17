@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.2.1]
+//[version:1.2.2]
 
 /**
  * 麦当劳优惠券管理插件
@@ -533,12 +533,17 @@ function showManageMenu() {
     message += "请回复数字选择操作";
 
     // 保存用户状态
-    saveUserState(userId, {
+    var stateToSave = {
         menu: "manage",
         step: "select"
-    });
+    };
+    saveUserState(userId, stateToSave);
 
-    sendText(message + "\n\n💡 提示：输入 q 可随时退出");
+    // 调试：验证状态是否保存成功
+    var savedState = getUserState(userId);
+    var debugInfo = savedState ? "状态已保存" : "状态保存失败";
+
+    sendText(message + "\n\n💡 提示：输入 q 可随时退出\n[DEBUG: " + debugInfo + "]");
 }
 
 /**
@@ -549,7 +554,11 @@ function handleManageInteraction(content) {
     var userData = getUserData(userId);
     var state = getUserState(userId);
 
+    // 调试：显示当前状态
+    var debugMsg = "[DEBUG: 收到输入='" + content + "', 状态=" + (state ? JSON.stringify(state) : "null") + "]";
+
     if (!state || state.menu !== "manage") {
+        sendText("❌ 状态丢失，重新显示菜单\n" + debugMsg);
         showManageMenu();
         return;
     }
