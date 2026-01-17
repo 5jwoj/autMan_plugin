@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.2.0]
+//[version:1.2.1]
 
 /**
  * 麦当劳优惠券管理插件
@@ -538,7 +538,7 @@ function showManageMenu() {
         step: "select"
     });
 
-    sendText(message);
+    sendText(message + "\n\n💡 提示：输入 q 可随时退出");
 }
 
 /**
@@ -889,6 +889,13 @@ function main() {
     // 检查是否是定时任务触发（定时任务时消息内容为空）
     if (!content || content === "") {
         cronTask();
+        return;
+    }
+
+    // 全局退出机制：用户可以随时输入 q 或 取消 来退出当前操作
+    if (content === "q" || content === "Q" || content === "取消") {
+        clearUserState(userId);
+        sendText("✅ 已退出当前操作\n\n发送「麦当劳」查看主菜单");
         return;
     }
 
