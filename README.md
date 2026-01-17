@@ -127,6 +127,33 @@
 
 ---
 
+### 🍔 麦当劳优惠券插件 v1.0.0
+
+基于麦当劳 MCP Server API 的优惠券管理插件，支持活动日历查询、优惠券领取、多账号管理和定时自动领券。
+
+**特性**:
+- ✅ 活动日历查询
+- ✅ 优惠券管理（查看可领/已领优惠券）
+- ✅ 一键领取所有优惠券
+- ✅ 多账号管理（支持添加多个 MCP 账号）
+- ✅ 定时自动领券（每天 09:00 自动领取）
+- ✅ 完整的 MCP 协议支持
+
+**使用示例**:
+```
+麦当劳                      # 显示主菜单
+麦当劳 优惠券               # 查看可领优惠券
+麦当劳 领券                 # 一键领取所有优惠券
+麦当劳 我的优惠券           # 查看已领优惠券
+麦当劳 添加账号 名称 Token  # 添加账号
+麦当劳 开启自动领券         # 开启自动领券
+麦当劳 帮助                 # 显示帮助信息
+```
+
+**查看详情**: [maimai/README.md](maimai/README.md)
+
+---
+
 ## 🚀 快速开始
 
 ### 天气查询插件(JavaScript)
@@ -151,6 +178,32 @@
    ```bash
    systemctl restart autman
    ```
+
+### 麦当劳优惠券插件(JavaScript)
+
+1. **下载插件文件**
+   ```bash
+   wget https://raw.githubusercontent.com/5jwoj/autMan_plugin/main/maimai/麦当劳优惠券.js
+   ```
+
+2. **上传到autMan**
+   ```bash
+   scp 麦当劳优惠券.js root@服务器:/root/aut/plugin/replies/
+   ```
+
+3. **获取 MCP Token**
+   - 访问 [麦当劳开放平台](https://open.mcd.cn/mcp/doc)
+   - 注册并创建应用
+   - 获取 MCP Token
+
+4. **重启autMan**
+   ```bash
+   systemctl restart autman
+   ```
+
+5. **添加账号**
+   - 在微信中发送：`麦当劳 添加账号 我的账号 YOUR_TOKEN`
+   - 开始使用：`麦当劳 优惠券`
 
 ### 健康记录插件(Python)
 
@@ -200,10 +253,10 @@
 
 ## 📍 系统要求
 
-- **autMan**: 支持Python和JavaScript插件的版本
+- **autMan**: 支持Python和JavaScript插件、定时任务的版本
 - **Python**: 3.6+ (健康记录插件)
 - **matplotlib**: 最新版本 (体重记录插件)
-- **网络**: 需要访问高德地图API(天气查询插件)
+- **网络**: 需要访问高德地图API(天气查询插件)、麦当劳MCP API(麦当劳优惠券插件)
 
 ## 🔧 技术栈
 
@@ -214,6 +267,7 @@
 | 便便记录 | Python | 无 | autMan存储桶 |
 | 性格测试 | Python | 无 | autMan存储桶 |
 | 体重记录 | Python | matplotlib | autMan存储桶 |
+| 麦当劳优惠券 | JavaScript | 麦当劳MCP API | autMan存储桶 |
 
 ## 📖 文档
 
@@ -224,6 +278,7 @@
 - [poop/README.md](poop/README.md) - 便便记录插件详细说明
 - [personality/README.md](personality/README.md) - 性格测试插件详细说明
 - [weight_tracker/README.md](weight_tracker/README.md) - 体重记录插件详细说明
+- [maimai/README.md](maimai/README.md) - 麦当劳优惠券插件详细说明
 
 ## 🎯 开发计划
 
