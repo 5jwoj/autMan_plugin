@@ -8,7 +8,7 @@
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.1.3]
+//[version:1.2.0]
 
 /**
  * 麦当劳优惠券管理插件
@@ -241,7 +241,7 @@ function parseSseResponse(text, requestId) {
  * 获取用户数据
  */
 function getUserData(userId) {
-    var data = bucketGet(USER_DATA_KEY, userId);
+    var data = bucketGet(USER_DATA_KEY, "data");
     if (!data) {
         return {
             accounts: {},
@@ -257,14 +257,14 @@ function getUserData(userId) {
  * 保存用户数据
  */
 function saveUserData(userId, userData) {
-    bucketSet(USER_DATA_KEY, userId, JSON.stringify(userData));
+    bucketSet(USER_DATA_KEY, "data", JSON.stringify(userData));
 }
 
 /**
  * 获取用户状态
  */
 function getUserState(userId) {
-    var state = bucketGet(USER_STATE_KEY, userId);
+    var state = bucketGet(USER_STATE_KEY, "state");
     if (!state || state === "") {
         return null;
     }
@@ -279,14 +279,14 @@ function getUserState(userId) {
  * 保存用户状态
  */
 function saveUserState(userId, state) {
-    bucketSet(USER_STATE_KEY, userId, JSON.stringify(state));
+    bucketSet(USER_STATE_KEY, "state", JSON.stringify(state));
 }
 
 /**
  * 清除用户状态
  */
 function clearUserState(userId) {
-    bucketSet(USER_STATE_KEY, userId, "");
+    bucketSet(USER_STATE_KEY, "state", "");
 }
 
 /**
