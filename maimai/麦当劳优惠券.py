@@ -3,7 +3,7 @@
 # [cron: 0 9 * * *]
 # [admin: false]
 # [price: 0.00]
-# [version: 2.0.1]
+# [version: 2.0.2]
 
 """
 autMan 插件 - 麦当劳优惠券管理（Python 版本）
@@ -246,15 +246,28 @@ class MaiMaiPlugin:
             if item.get("type") == "text":
                 text += item.get("text", "")
         
-        # 移除图片标记
         import re
+        
+        # 移除 HTML 图片标签（包括换行的）
+        text = re.sub(r'<\s*img[^>]*>', '', text, flags=re.IGNORECASE | re.DOTALL)
+        
+        # 移除 Markdown 图片语法
         text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+        
+        # 移除行尾的反斜杠
+        text = re.sub(r'\\\s*$', '', text, flags=re.MULTILINE)
+        
+        # 清理多余的空行
+        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+        
+        # 移除 Markdown 标题语法（###）
+        text = re.sub(r'^###\s+', '', text, flags=re.MULTILINE)
         
         # 限制长度
         if len(text) > 2000:
             text = text[:1997] + "..."
         
-        return text
+        return text.strip()
     
     def show_help(self):
         """显示帮助信息"""
