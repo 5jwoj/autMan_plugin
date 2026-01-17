@@ -3,7 +3,7 @@
 # [cron: 0 9 * * *]
 # [admin: false]
 # [price: 0.00]
-# [version: 2.0.0]
+# [version: 2.0.1]
 
 """
 autMan 插件 - 麦当劳优惠券管理（Python 版本）
@@ -192,7 +192,8 @@ class MaiMaiPlugin:
         self.sender = middleware.Sender(sender_id)
         self.user_id = self.sender.getUserID()
         self.message = self.sender.getMessage().strip()
-        self.is_cron = middleware.isCron()
+        # 定时任务时消息为空
+        self.is_cron = (not self.message or self.message == "")
     
     def get_user_data(self):
         """获取用户数据"""
