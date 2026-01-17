@@ -3,12 +3,12 @@
 //[author:AI Assistant]
 //[description:麦当劳优惠券管理插件，支持查询活动日历、领取优惠券、多账号管理和定时自动领券]
 //[rule:^麦当劳$]
-//[rule:^麦当劳\s+(.+)$]
+//[rule:^麦当劳(.+)$]
 //[cron:0 9 * * *]
 //[admin:false]
 //[priority:100]
 //[disable:false]
-//[version:1.1.0]
+//[version:1.1.1]
 
 /**
  * 麦当劳优惠券管理插件
@@ -901,8 +901,8 @@ function main() {
         return;
     }
 
-    // 提取子命令
-    var match = content.match(/^麦当劳\s+(.+)$/);
+    // 提取子命令（支持带空格和不带空格）
+    var match = content.match(/^麦当劳(.+)$/);
     if (!match) {
         showMainMenu();
         return;
