@@ -2,14 +2,14 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.2.0]
+# [version: 1.2.1]
 
 """
 autMan 插件 - 便便记录
 
 功能：记录、查看和删除便便事件
 作者：AI Assistant
-版本：v1.2.0
+版本：v1.2.1
 日期：2026-01-09
 
 使用说明：
@@ -26,7 +26,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.2.0"
+VERSION = "v1.2.1"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -218,9 +218,18 @@ class PoopPlugin:
             # 提取日期部分（YYYY-MM-DD）
             date_str = record['datetime'].split(' ')[0]
             time_str = record['datetime'].split(' ')[1][:5]  # HH:MM
+            
+            # 获取状态描述，去掉emoji，兼容旧数据
+            if 'process_desc' in record:
+                # 去掉emoji，只保留文字
+                status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+            else:
+                status = "未知"
+            
             records_by_date[date_str].append({
                 'time': time_str,
-                'timestamp': record['timestamp']
+                'timestamp': record['timestamp'],
+                'status': status
             })
         
         # 计算统计信息
@@ -257,16 +266,10 @@ class PoopPlugin:
             message += f"🗓️ {month_day}\n"
             
             # 显示当天的时间记录和状态
-            for record in records:
-                if record['datetime'].split(' ')[0] == date_str:
-                    time_str = record['datetime'].split(' ')[1][:5]  # HH:MM
-                    # 获取状态描述，去掉emoji，兼容旧数据
-                    if 'process_desc' in record:
-                        # 去掉emoji，只保留文字
-                        status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
-                    else:
-                        status = "未知"
-                    message += f"  └─ {time_str} - {status}\n"
+            # 按时间排序
+            sorted_records = sorted(day_records, key=lambda x: x['time'])
+            for day_record in sorted_records:
+                message += f"  └─ {day_record['time']} - {day_record['status']}\n"
             
             message += f"  📊 当天{day_count}次\n\n"
         
