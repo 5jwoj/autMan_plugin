@@ -2,14 +2,14 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.1.0]
+# [version: 1.2.0]
 
 """
 autMan 插件 - 便便记录
 
 功能：记录、查看和删除便便事件
 作者：AI Assistant
-版本：v1.1.0
+版本：v1.2.0
 日期：2026-01-09
 
 使用说明：
@@ -26,7 +26,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.1.0"
+VERSION = "v1.2.0"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -147,7 +147,7 @@ class PoopPlugin:
         
         if confirmation == "y":
             # 第二步：询问便便过程
-            self.sender.reply("💩 请选择便便过程：\n\n  A - 通畅 😊\n  B - 一般 😐\n  C - 费劲 😣\n  q - 退出")
+            self.sender.reply("💩 请选择便便过程：\n\n  A - 通畅 😊\n  B - 一般 😐\n  C - 费劲 😣\n  D - 拉稀 💧\n  q - 退出")
             
             process_input = self.sender.listen(INPUT_TIMEOUT)
             
@@ -162,15 +162,16 @@ class PoopPlugin:
                 return
             
             # 验证输入
-            if process not in ["A", "B", "C"]:
-                self.sender.reply("❌ 无效的选项，请输入 A、B 或 C")
+            if process not in ["A", "B", "C", "D"]:
+                self.sender.reply("❌ 无效的选项，请输入 A、B、C 或 D")
                 return
             
             # 映射过程描述
             process_map = {
                 "A": "通畅 😊",
                 "B": "一般 😐",
-                "C": "费劲 😣"
+                "C": "费劲 😣",
+                "D": "拉稀 💧"
             }
             process_desc = process_map[process]
             
@@ -253,20 +254,19 @@ class PoopPlugin:
             date_obj = dt.strptime(date_str, '%Y-%m-%d')
             month_day = f"{date_obj.month}月{date_obj.day}日"
             
-            # 根据次数选择颜色标记
-            if day_count == 1:
-                color_mark = "🟢"
-            elif day_count == 2:
-                color_mark = "🟡"
-            else:
-                color_mark = "🔴"
+            message += f"🗓️ {month_day}\n"
             
-            message += f"🗓️ {month_day} {color_mark}\n"
-            
-            # 显示当天的时间记录
-            times = sorted([r['time'] for r in day_records])
-            for time in times:
-                message += f"  └─ {time}\n"
+            # 显示当天的时间记录和状态
+            for record in records:
+                if record['datetime'].split(' ')[0] == date_str:
+                    time_str = record['datetime'].split(' ')[1][:5]  # HH:MM
+                    # 获取状态描述，去掉emoji，兼容旧数据
+                    if 'process_desc' in record:
+                        # 去掉emoji，只保留文字
+                        status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+                    else:
+                        status = "未知"
+                    message += f"  └─ {time_str} - {status}\n"
             
             message += f"  📊 当天{day_count}次\n\n"
         
