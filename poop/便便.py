@@ -2,14 +2,14 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.2.1]
+# [version: 1.3.0]
 
 """
 autMan 插件 - 便便记录
 
 功能：记录、查看和删除便便事件
 作者：AI Assistant
-版本：v1.2.1
+版本：v1.3.0
 日期：2026-01-09
 
 使用说明：
@@ -26,7 +26,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.2.1"
+VERSION = "v1.3.0"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -202,26 +202,112 @@ class PoopPlugin:
         # 无效输入
         self.sender.reply("❓ 无效的输入，请重新操作")
     
+    def get_date_label(self, date_str):
+        """获取日期标签（如"今天"、"昨天"）"""
+        from datetime import datetime as dt, timedelta
+        today = dt.now().date()
+        date_obj = dt.strptime(date_str, '%Y-%m-%d').date()
+        
+        if date_obj == today:
+            return f"{date_obj.month}月{date_obj.day}日 (今天)"
+        elif date_obj == today - timedelta(days=1):
+            return f"{date_obj.month}月{date_obj.day}日 (昨天)"
+        else:
+            return f"{date_obj.month}月{date_obj.day}日"
+    
+    def get_status_summary(self, day_records):
+        """获取某天的状态概要"""
+        from collections import Counter
+        status_count = Counter([r['status'] for r in day_records])
+        summary_parts = [f"{status}×{count}" for status, count in status_count.items()]
+        return ", ".join(summary_parts)
+    
+    def get_status_distribution(self, records):
+        """计算状态分布"""
+        from collections import Counter
+        status_list = []
+        for record in records:
+            if 'process_desc' in record:
+                status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+            else:
+                status = "未知"
+            status_list.append(status)
+        return Counter(status_list)
+    
+    def calculate_period_stats(self, records, days=None):
+        """计算指定时段的统计信息"""
+        from datetime import datetime as dt, timedelta
+        
+        if days:
+            cutoff_date = dt.now() - timedelta(days=days)
+            filtered_records = [r for r in records if dt.strptime(r['datetime'], '%Y-%m-%d %H:%M:%S') >= cutoff_date]
+        else:
+            filtered_records = records
+        
+        if not filtered_records:
+            return None
+        
+        status_dist = self.get_status_distribution(filtered_records)
+        total = len(filtered_records)
+        status_percent = {status: (count / total * 100) for status, count in status_dist.items()}
+        
+        return {
+            'total': total,
+            'status_dist': status_dist,
+            'status_percent': status_percent
+        }
+    
     def view_records(self):
-        """查看历史记录"""
+        """查看历史记录（交互式菜单）"""
         records = self.get_user_records()
         
         if len(records) == 0:
             self.sender.reply("📭 暂无记录\n\n💡 发送「便便」可以记录新的事件")
             return
         
-        # 按日期分组记录
+        # 显示概览和菜单
+        self.show_overview(records)
+        
+        # 等待用户选择
+        user_input = self.sender.listen(INPUT_TIMEOUT)
+        
+        if user_input is None:
+            self.sender.reply("⏱️ 操作超时，已退出")
+            return
+        
+        choice = user_input.strip().lower()
+        
+        if choice == "q":
+            self.sender.reply("👋 已退出查看")
+            return
+        elif choice == "1":
+            self.show_recent_details(records, 7)
+            return
+        elif choice == "2":
+            self.show_recent_details(records, 30)
+            return
+        elif choice == "3":
+            self.show_all_records(records)
+            return
+        elif choice == "4":
+            self.show_statistics(records)
+            return
+        else:
+            self.sender.reply("❌ 无效的选项，请输入 1-4 或 q")
+    
+    def show_overview(self, records):
+        """显示概览和菜单"""
         from collections import defaultdict
+        from datetime import datetime as dt, timedelta
+        
+        # 按日期分组记录
         records_by_date = defaultdict(list)
         
         for record in records:
-            # 提取日期部分（YYYY-MM-DD）
             date_str = record['datetime'].split(' ')[0]
-            time_str = record['datetime'].split(' ')[1][:5]  # HH:MM
+            time_str = record['datetime'].split(' ')[1][:5]
             
-            # 获取状态描述，去掉emoji，兼容旧数据
             if 'process_desc' in record:
-                # 去掉emoji，只保留文字
                 status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
             else:
                 status = "未知"
@@ -235,57 +321,259 @@ class PoopPlugin:
         # 计算统计信息
         total_count = len(records)
         total_days = len(records_by_date)
-        
-        # 获取日期范围
         dates = sorted(records_by_date.keys())
         first_date = dates[0]
         last_date = dates[-1]
-        
-        # 计算跨度天数
-        from datetime import datetime as dt
         date_span = (dt.strptime(last_date, '%Y-%m-%d') - dt.strptime(first_date, '%Y-%m-%d')).days + 1
-        
-        # 计算平均频率
         avg_freq = total_count / total_days if total_days > 0 else 0
         
-        # 构建消息
-        message = f"📊 便便记录 (共{total_count}条)\n"
-        message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        
-        # 按日期显示记录（最多显示最近10天，避免消息过长）
-        display_dates = sorted(records_by_date.keys(), reverse=True)[:10]
-        
-        for date_str in display_dates:
-            day_records = records_by_date[date_str]
-            day_count = len(day_records)
-            
-            # 格式化日期显示（如：1月2日）
-            date_obj = dt.strptime(date_str, '%Y-%m-%d')
-            month_day = f"{date_obj.month}月{date_obj.day}日"
-            
-            message += f"🗓️ {month_day}\n"
-            
-            # 显示当天的时间记录和状态
-            # 按时间排序
-            sorted_records = sorted(day_records, key=lambda x: x['time'])
-            for day_record in sorted_records:
-                message += f"  └─ {day_record['time']} - {day_record['status']}\n"
-            
-            message += f"  📊 当天{day_count}次\n\n"
-        
-        # 如果记录超过10天，显示提示
-        if len(records_by_date) > 10:
-            hidden_days = len(records_by_date) - 10
-            message += f"... 还有{hidden_days}天的记录未显示\n\n"
-        
-        # 添加统计信息
+        # 构建概览消息
+        message = "📊 便便记录概览\n\n"
         message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         message += "📈 总体统计\n"
         message += f"• 记录时段: {first_date} 至 {last_date}\n"
         message += f"• 记录天数: {total_days}天 (跨度{date_span}天)\n"
         message += f"• 总计次数: {total_count}次\n"
         message += f"• 平均频率: {avg_freq:.2f}次/天\n\n"
-        message += "💡 发送「便便删除」可以删除记录"
+        
+        # 最近7天概要
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += "📅 最近7天概要\n\n"
+        
+        # 获取最近7天的日期
+        today = dt.now().date()
+        recent_dates = []
+        for i in range(6, -1, -1):
+            date = today - timedelta(days=i)
+            recent_dates.append(date.strftime('%Y-%m-%d'))
+        
+        for date_str in recent_dates:
+            date_label = self.get_date_label(date_str)
+            if date_str in records_by_date:
+                day_records = records_by_date[date_str]
+                day_count = len(day_records)
+                summary = self.get_status_summary(day_records)
+                message += f"{date_label:<20} {day_count}次 [{summary}]\n"
+            else:
+                message += f"{date_label:<20} 0次\n"
+        
+        # 菜单选项
+        message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += "📋 查看选项\n\n"
+        message += "请选择查看方式：\n"
+        message += "  1 - 查看最近7天详细记录\n"
+        message += "  2 - 查看最近30天详细记录\n"
+        message += "  3 - 查看全部记录\n"
+        message += "  4 - 查看统计分析\n"
+        message += "  q - 退出\n\n"
+        message += "请输入选项编号："
+        
+        self.sender.reply(message)
+    
+    def show_recent_details(self, records, days):
+        """显示最近N天的详细记录"""
+        from collections import defaultdict
+        from datetime import datetime as dt, timedelta
+        
+        # 筛选最近N天的记录
+        cutoff_date = dt.now() - timedelta(days=days)
+        recent_records = [r for r in records if dt.strptime(r['datetime'], '%Y-%m-%d %H:%M:%S') >= cutoff_date]
+        
+        if not recent_records:
+            self.sender.reply(f"📭 最近{days}天没有记录")
+            return
+        
+        # 按日期分组
+        records_by_date = defaultdict(list)
+        for record in recent_records:
+            date_str = record['datetime'].split(' ')[0]
+            time_str = record['datetime'].split(' ')[1][:5]
+            
+            if 'process_desc' in record:
+                status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+            else:
+                status = "未知"
+            
+            records_by_date[date_str].append({
+                'time': time_str,
+                'status': status
+            })
+        
+        # 构建消息
+        message = f"📊 最近{days}天详细记录\n\n"
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        
+        # 按日期倒序显示
+        for date_str in sorted(records_by_date.keys(), reverse=True):
+            date_label = self.get_date_label(date_str)
+            day_records = records_by_date[date_str]
+            day_count = len(day_records)
+            
+            message += f"🗓️ {date_label}\n"
+            
+            # 按时间排序显示
+            sorted_records = sorted(day_records, key=lambda x: x['time'])
+            for day_record in sorted_records:
+                message += f"  └─ {day_record['time']} - {day_record['status']}\n"
+            
+            message += f"  📊 当天{day_count}次\n\n"
+        
+        # 统计信息
+        stats = self.calculate_period_stats(recent_records, days)
+        if stats:
+            message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            message += f"📈 {days}天统计\n"
+            message += f"• 总计: {stats['total']}次\n"
+            message += f"• 平均: {stats['total']/days:.2f}次/天\n"
+            
+            # 状态分布
+            status_parts = []
+            for status, percent in stats['status_percent'].items():
+                status_parts.append(f"{status} {percent:.0f}%")
+            message += f"• 状态分布: {', '.join(status_parts)}"
+        
+        self.sender.reply(message)
+    
+    def show_all_records(self, records):
+        """显示全部记录"""
+        from collections import defaultdict
+        
+        # 按日期分组
+        records_by_date = defaultdict(list)
+        for record in records:
+            date_str = record['datetime'].split(' ')[0]
+            time_str = record['datetime'].split(' ')[1][:5]
+            
+            if 'process_desc' in record:
+                status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+            else:
+                status = "未知"
+            
+            records_by_date[date_str].append({
+                'time': time_str,
+                'status': status
+            })
+        
+        total_days = len(records_by_date)
+        
+        # 如果记录太多，只显示最近30天
+        if total_days > 30:
+            display_dates = sorted(records_by_date.keys(), reverse=True)[:30]
+            message = f"📊 全部记录 (显示最近30天，共{total_days}天)\n\n"
+        else:
+            display_dates = sorted(records_by_date.keys(), reverse=True)
+            message = f"� 全部记录 (共{total_days}天)\n\n"
+        
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        
+        # 显示记录
+        for date_str in display_dates:
+            date_label = self.get_date_label(date_str)
+            day_records = records_by_date[date_str]
+            day_count = len(day_records)
+            
+            message += f"🗓️ {date_label}\n"
+            
+            sorted_records = sorted(day_records, key=lambda x: x['time'])
+            for day_record in sorted_records:
+                message += f"  └─ {day_record['time']} - {day_record['status']}\n"
+            
+            message += f"  📊 当天{day_count}次\n\n"
+        
+        if total_days > 30:
+            message += f"... 还有{total_days - 30}天的记录未显示"
+        
+        self.sender.reply(message)
+    
+    def show_statistics(self, records):
+        """显示统计分析"""
+        from collections import defaultdict
+        from datetime import datetime as dt
+        
+        # 按日期分组
+        records_by_date = defaultdict(list)
+        for record in records:
+            date_str = record['datetime'].split(' ')[0]
+            
+            if 'process_desc' in record:
+                status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+            else:
+                status = "未知"
+            
+            records_by_date[date_str].append({'status': status})
+        
+        # 计算统计信息
+        total_count = len(records)
+        total_days = len(records_by_date)
+        dates = sorted(records_by_date.keys())
+        first_date = dates[0]
+        last_date = dates[-1]
+        date_span = (dt.strptime(last_date, '%Y-%m-%d') - dt.strptime(first_date, '%Y-%m-%d')).days + 1
+        avg_freq = total_count / total_days if total_days > 0 else 0
+        coverage = (total_days / date_span * 100) if date_span > 0 else 0
+        
+        # 状态分布
+        status_dist = self.get_status_distribution(records)
+        
+        # 频率分布
+        freq_dist = {}
+        for day_records in records_by_date.values():
+            count = len(day_records)
+            freq_dist[count] = freq_dist.get(count, 0) + 1
+        
+        # 构建消息
+        message = "📊 便便记录统计分析\n\n"
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += "📈 总体数据\n"
+        message += f"• 记录时段: {first_date} 至 {last_date} ({date_span}天)\n"
+        message += f"• 记录天数: {total_days}天 (覆盖率 {coverage:.1f}%)\n"
+        message += f"• 总计次数: {total_count}次\n"
+        message += f"• 平均频率: {avg_freq:.2f}次/天\n\n"
+        
+        # 状态分布
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += "💩 状态分布\n"
+        for status, count in sorted(status_dist.items(), key=lambda x: x[1], reverse=True):
+            percent = count / total_count * 100
+            bar_length = int(percent / 5)  # 每5%一个方块
+            bar = "█" * bar_length
+            message += f"• {status}: {count}次 ({percent:.1f}%) {bar}\n"
+        
+        message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += "� 频率分布\n"
+        for freq in sorted(freq_dist.keys()):
+            days_count = freq_dist[freq]
+            percent = days_count / total_days * 100
+            message += f"• 每天{freq}次: {days_count}天 ({percent:.1f}%)\n"
+        
+        # 健康分析
+        message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += "🔍 健康分析\n"
+        
+        # 频率分析
+        if 1 <= avg_freq <= 2:
+            message += "✅ 平均频率正常 (1-2次/天)\n"
+        elif avg_freq < 1:
+            message += "⚠️ 平均频率偏低 (<1次/天)\n"
+        else:
+            message += "⚠️ 平均频率偏高 (>2次/天)\n"
+        
+        # 通畅状态分析
+        if "通畅" in status_dist:
+            smooth_percent = status_dist["通畅"] / total_count * 100
+            if smooth_percent >= 60:
+                message += "✅ 通畅状态占比良好 (≥60%)\n"
+            else:
+                message += "⚠️ 通畅状态占比偏低 (<60%)\n"
+        
+        # 拉稀分析
+        if "拉稀" in status_dist:
+            # 检查最近7天是否有拉稀
+            recent_7days_stats = self.calculate_period_stats(records, 7)
+            if recent_7days_stats and "拉稀" in recent_7days_stats['status_dist']:
+                message += f"⚠️ 拉稀情况需注意 (近7天出现{recent_7days_stats['status_dist']['拉稀']}次)\n"
+        
+        message += "\n�💡 建议: 保持良好的饮食习惯和作息规律"
         
         self.sender.reply(message)
     
