@@ -175,7 +175,20 @@ class PoopPlugin:
             debug_msg += f"API Key 长度: {len(self.zhipu_api_key)}\n"
             debug_msg += f"模型: {self.zhipu_model}\n"
             debug_msg += f"自定义提示词: {'已配置 ✅' if self.ai_prompt else '未配置 ❌'}\n"
-            debug_msg += f"提示词长度: {len(self.ai_prompt)}\n"
+            debug_msg += f"提示词长度: {len(self.ai_prompt)}\n\n"
+            
+            # 尝试读取所有可能的配置键名
+            debug_msg += "🔧 配置键名测试：\n"
+            test_keys = [
+                "poop.zhipu_api_key",
+                "zhipu_api_key",
+                "便便.zhipu_api_key",
+                "poop_zhipu_api_key"
+            ]
+            for key in test_keys:
+                value = middleware.bucketGet("otto", key) or ""
+                debug_msg += f"  {key}: {'有值' if value else '无值'} (长度: {len(value)})\n"
+            
             self.sender.reply(debug_msg)
     
     def get_user_confirmation(self, prompt):
