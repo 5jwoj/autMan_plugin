@@ -112,7 +112,12 @@ class ZhipuAI:
 - 给出实用的建议
 - 如有异常情况，建议就医"""
         
+        print(f"[ZhipuAI] 准备调用 API")
+        print(f"[ZhipuAI] 模型: {self.model}")
+        print(f"[ZhipuAI] 提示词长度: {len(prompt)}")
+        
         try:
+            print(f"[ZhipuAI] 发送 POST 请求到: {self.api_url}")
             response = requests.post(
                 self.api_url,
                 headers={
@@ -126,13 +131,20 @@ class ZhipuAI:
                 timeout=30
             )
             
+            print(f"[ZhipuAI] 响应状态码: {response.status_code}")
+            
             if response.status_code == 200:
                 data = response.json()
+                print(f"[ZhipuAI] 响应数据: {data.keys() if isinstance(data, dict) else 'not dict'}")
                 if data.get('choices'):
-                    return data['choices'][0]['message']['content']
+                    result = data['choices'][0]['message']['content']
+                    print(f"[ZhipuAI] 成功获取分析结果，长度: {len(result)}")
+                    return result
             
+            print(f"[ZhipuAI] API 调用失败，响应内容: {response.text[:200]}")
             raise Exception(f"智谱AI调用失败: {response.text}")
         except Exception as e:
+            print(f"[ZhipuAI] 异常: {str(e)}")
             raise Exception(f"智谱AI调用失败: {e}")
 
 
@@ -155,6 +167,13 @@ class PoopPlugin:
         self.zhipu_api_key = middleware.bucketGet("otto", "poop.zhipu_api_key") or ""
         self.zhipu_model = middleware.bucketGet("otto", "poop.zhipu_model") or "glm-4-flash"
         self.ai_prompt = middleware.bucketGet("otto", "poop.ai_prompt") or ""
+        
+        # 调试日志：输出配置读取情况
+        print(f"[便便插件] 配置读取情况:")
+        print(f"  - zhipu_api_key: {'已配置' if self.zhipu_api_key else '未配置'} (长度: {len(self.zhipu_api_key)})")
+        print(f"  - zhipu_model: {self.zhipu_model}")
+        print(f"  - ai_prompt: {'已配置' if self.ai_prompt else '未配置'} (长度: {len(self.ai_prompt)})")
+        print(f"  - 当前命令: {self.message}")
     
     def get_user_confirmation(self, prompt):
         """
@@ -779,25 +798,41 @@ class PoopPlugin:
     
     def analyze_health(self):
         """AI分析便便健康状况"""
+        print(f"[便便插件] 开始执行 AI 分析")
+        print(f"[便便插件] API Key 状态: {'已配置' if self.zhipu_api_key else '未配置'}")
+        print(f"[便便插件] API Key 长度: {len(self.zhipu_api_key)}")
+        
         # 检查是否配置了智谱AI
         if not self.zhipu_api_key:
+            print(f"[便便插件] 检测到 API Key 未配置，返回提示信息")
             self.sender.reply("❌ AI分析功能未配置\n\n请在插件管理中配置智谱AI密钥\n访问 https://open.bigmodel.cn/ 获取API密钥")
             return
         
+        print(f"[便便插件] API Key 已配置，继续执行")
+        
         # 获取用户记录
         records = self.get_user_records()
+        print(f"[便便插件] 获取到 {len(records)} 条记录")
         
         if len(records) == 0:
+            print(f"[便便插件] 无记录，返回提示信息")
             self.sender.reply("📭 暂无记录，无法进行分析\n\n💡 发送「便便」可以记录新的事件")
             return
         
         # 显示分析提示
+        print(f"[便便插件] 发送分析中提示")
         self.sender.reply("🤖 正在分析您的便便健康状况...\n\n⏳ 请稍候，这可能需要几秒钟")
         
         try:
+            print(f"[便便插件] 开始调用智谱 AI API")
+            print(f"[便便插件] 使用模型: {self.zhipu_model}")
+            print(f"[便便插件] 自定义提示词: {'是' if self.ai_prompt else '否'}")
+            
             # 调用智谱AI进行分析
             ai = ZhipuAI(self.zhipu_api_key, self.zhipu_model)
             analysis_result = ai.analyze_poop_health(records, self.ai_prompt)
+            
+            print(f"[便便插件] AI 分析完成，结果长度: {len(analysis_result)}")
             
             # 格式化并发送分析结果
             result_message = "🏥 便便健康分析报告\n\n"
@@ -810,10 +845,12 @@ class PoopPlugin:
             result_message += f"🤖 分析模型：{self.zhipu_model}\n"
             result_message += "💡 发送「便便记录」可查看详细记录"
             
+            print(f"[便便插件] 发送分析结果")
             self.sender.reply(result_message)
             
         except Exception as e:
             error_msg = str(e)
+            print(f"[便便插件] AI 分析失败: {error_msg}")
             self.sender.reply(f"❌ AI分析失败：{error_msg}\n\n可能的原因：\n• API密钥无效或已过期\n• 网络连接问题\n• API调用额度不足\n\n请检查配置后重试")
     
     def run(self):
