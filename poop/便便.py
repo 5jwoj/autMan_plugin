@@ -2,32 +2,138 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.3.0]
+# [version: 1.4.0]
+# [param:{"required":false,"key":"poop.zhipu_api_key","bool":false,"placeholder":"sk-","name":"智谱AI密钥","desc":"从 https://open.bigmodel.cn/ 获取，用于AI健康分析功能"}]
+# [param:{"required":false,"key":"poop.zhipu_model","bool":false,"placeholder":"glm-4-flash","name":"智谱AI模型","desc":"默认使用 glm-4-flash，可选 glm-4、glm-4-plus 等"}]
+# [param:{"required":false,"key":"poop.ai_prompt","bool":false,"placeholder":"","name":"AI分析提示词","desc":"自定义AI分析的提示词，留空使用默认提示词"}]
 
 """
 autMan 插件 - 便便记录
 
-功能：记录、查看和删除便便事件
+功能：记录、查看和删除便便事件，支持AI健康分析
 作者：AI Assistant
-版本：v1.3.0
-日期：2026-01-09
+版本：v1.4.0
+日期：2026-02-06
 
 使用说明：
 - 便便：记录一次便便事件
 - 便便记录：查看所有历史记录
 - 便便删除：删除指定的历史记录
+- 便便分析：AI分析便便健康状况（需配置智谱AI）
 - 便便帮助：显示帮助信息
+
+配置说明：
+- zhipu_api_key：智谱AI的API密钥（可选，用于AI分析功能）
+- zhipu_model：智谱AI模型名称（可选，默认 glm-4-flash）
+- ai_prompt：自定义AI分析提示词（可选，留空使用默认提示词）
 """
 
 import middleware
 import time
 import json
+import requests
 from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.3.0"
+VERSION = "v1.4.0"
 INPUT_TIMEOUT = 60000  # 60秒超时
+
+
+class ZhipuAI:
+    """智谱AI API 封装类"""
+    
+    def __init__(self, api_key, model="glm-4-flash"):
+        self.api_key = api_key
+        self.model = model
+        self.api_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    
+    def analyze_poop_health(self, records, custom_prompt=""):
+        """
+        分析便便健康状况
+        :param records: 便便记录列表
+        :param custom_prompt: 自定义提示词
+        :return: AI分析结果
+        """
+        # 准备数据摘要
+        from collections import Counter
+        from datetime import datetime as dt, timedelta
+        
+        # 统计最近7天的数据
+        recent_7days = []
+        cutoff_date = dt.now() - timedelta(days=7)
+        
+        for record in records:
+            record_date = dt.strptime(record['datetime'], '%Y-%m-%d %H:%M:%S')
+            if record_date >= cutoff_date:
+                recent_7days.append(record)
+        
+        if not recent_7days:
+            return "暂无最近7天的记录，无法进行分析。"
+        
+        # 统计状态分布
+        status_list = []
+        for record in recent_7days:
+            if 'process_desc' in record:
+                status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+            else:
+                status = "未知"
+            status_list.append(status)
+        
+        status_dist = Counter(status_list)
+        total_count = len(recent_7days)
+        avg_freq = total_count / 7
+        
+        # 构建数据摘要
+        data_summary = f"最近7天便便记录：\n"
+        data_summary += f"- 总次数：{total_count}次\n"
+        data_summary += f"- 平均频率：{avg_freq:.2f}次/天\n"
+        data_summary += f"- 状态分布：\n"
+        for status, count in status_dist.items():
+            percent = count / total_count * 100
+            data_summary += f"  • {status}：{count}次 ({percent:.1f}%)\n"
+        
+        # 构建提示词
+        if custom_prompt:
+            prompt = custom_prompt.replace("{data}", data_summary)
+        else:
+            prompt = f"""你是一位专业的健康顾问，请根据以下便便记录数据进行健康分析：
+
+{data_summary}
+
+请提供：
+1. 健康状况评估（正常/需注意/建议就医）
+2. 具体分析（从频率、状态等方面）
+3. 健康建议（饮食、作息等方面）
+
+要求：
+- 语气专业但温和
+- 控制在200字以内
+- 给出实用的建议
+- 如有异常情况，建议就医"""
+        
+        try:
+            response = requests.post(
+                self.api_url,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}]
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('choices'):
+                    return data['choices'][0]['message']['content']
+            
+            raise Exception(f"智谱AI调用失败: {response.text}")
+        except Exception as e:
+            raise Exception(f"智谱AI调用失败: {e}")
 
 
 class PoopPlugin:
@@ -43,6 +149,12 @@ class PoopPlugin:
             self.username = self.user_id
         self.imtype = self.sender.getImtype()
         self.message = self.sender.getMessage().strip()
+        
+        # 从插件头部注释读取配置
+        # autMan会自动将 [param] 中定义的配置注入到otto桶
+        self.zhipu_api_key = middleware.bucketGet("otto", "poop.zhipu_api_key") or ""
+        self.zhipu_model = middleware.bucketGet("otto", "poop.zhipu_model") or "glm-4-flash"
+        self.ai_prompt = middleware.bucketGet("otto", "poop.ai_prompt") or ""
     
     def get_user_confirmation(self, prompt):
         """
@@ -114,17 +226,30 @@ class PoopPlugin:
         """显示帮助信息"""
         help_text = f"📖 便便记录插件 {VERSION}\n\n"
         help_text += "🔹 功能说明：\n"
-        help_text += "本插件帮助您记录和追踪便便事件\n\n"
+        help_text += "本插件帮助您记录和追踪便便事件，支持AI健康分析\n\n"
         help_text += "🔹 命令列表：\n"
         help_text += "• 便便 - 记录一次便便事件\n"
         help_text += "• 便便记录 - 查看所有历史记录\n"
         help_text += "• 便便删除 - 删除指定的历史记录\n"
+        help_text += "• 便便分析 - AI分析便便健康状况\n"
         help_text += "• 便便帮助 - 显示此帮助信息\n\n"
         help_text += "🔹 确认机制：\n"
         help_text += "记录和删除操作需要确认：\n"
         help_text += "  y - 确认执行\n"
         help_text += "  n - 取消操作\n"
         help_text += "  q - 退出流程\n\n"
+        
+        # 检查AI配置状态
+        if self.zhipu_api_key:
+            help_text += "🤖 AI分析：已配置\n"
+            help_text += f"  • 模型：{self.zhipu_model}\n"
+            if self.ai_prompt:
+                help_text += "  • 自定义提示词：已设置\n"
+            help_text += "\n"
+        else:
+            help_text += "🤖 AI分析：未配置\n"
+            help_text += "  • 需在插件管理中配置智谱AI密钥\n\n"
+        
         help_text += "💡 提示：记录会包含时间信息，方便您追踪健康状况"
         
         self.sender.reply(help_text)
@@ -652,6 +777,45 @@ class PoopPlugin:
         # 无效输入
         self.sender.reply("❓ 无效的输入，已取消删除")
     
+    def analyze_health(self):
+        """AI分析便便健康状况"""
+        # 检查是否配置了智谱AI
+        if not self.zhipu_api_key:
+            self.sender.reply("❌ AI分析功能未配置\n\n请在插件管理中配置智谱AI密钥\n访问 https://open.bigmodel.cn/ 获取API密钥")
+            return
+        
+        # 获取用户记录
+        records = self.get_user_records()
+        
+        if len(records) == 0:
+            self.sender.reply("📭 暂无记录，无法进行分析\n\n💡 发送「便便」可以记录新的事件")
+            return
+        
+        # 显示分析提示
+        self.sender.reply("🤖 正在分析您的便便健康状况...\n\n⏳ 请稍候，这可能需要几秒钟")
+        
+        try:
+            # 调用智谱AI进行分析
+            ai = ZhipuAI(self.zhipu_api_key, self.zhipu_model)
+            analysis_result = ai.analyze_poop_health(records, self.ai_prompt)
+            
+            # 格式化并发送分析结果
+            result_message = "🏥 便便健康分析报告\n\n"
+            result_message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            result_message += f"{analysis_result}\n"
+            result_message += "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            result_message += "⚠️ 免责声明：\n"
+            result_message += "本分析仅供参考，不能替代专业医疗建议。\n"
+            result_message += "如有健康问题，请咨询专业医生。\n\n"
+            result_message += f"🤖 分析模型：{self.zhipu_model}\n"
+            result_message += "💡 发送「便便记录」可查看详细记录"
+            
+            self.sender.reply(result_message)
+            
+        except Exception as e:
+            error_msg = str(e)
+            self.sender.reply(f"❌ AI分析失败：{error_msg}\n\n可能的原因：\n• API密钥无效或已过期\n• 网络连接问题\n• API调用额度不足\n\n请检查配置后重试")
+    
     def run(self):
         """主程序入口"""
         try:
@@ -662,6 +826,8 @@ class PoopPlugin:
                 self.view_records()
             elif self.message == "便便删除":
                 self.delete_record()
+            elif self.message == "便便分析":
+                self.analyze_health()
             elif self.message == "便便":
                 self.record_poop()
             else:
