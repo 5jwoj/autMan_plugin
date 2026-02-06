@@ -168,12 +168,15 @@ class PoopPlugin:
         self.zhipu_model = middleware.bucketGet("otto", "poop.zhipu_model") or "glm-4-flash"
         self.ai_prompt = middleware.bucketGet("otto", "poop.ai_prompt") or ""
         
-        # 调试日志：输出配置读取情况
-        print(f"[便便插件] 配置读取情况:")
-        print(f"  - zhipu_api_key: {'已配置' if self.zhipu_api_key else '未配置'} (长度: {len(self.zhipu_api_key)})")
-        print(f"  - zhipu_model: {self.zhipu_model}")
-        print(f"  - ai_prompt: {'已配置' if self.ai_prompt else '未配置'} (长度: {len(self.ai_prompt)})")
-        print(f"  - 当前命令: {self.message}")
+        # 调试日志：输出配置读取情况（仅在执行便便分析时显示）
+        if self.message == "便便分析":
+            debug_msg = "🔍 调试信息：\n\n"
+            debug_msg += f"API Key: {'已配置 ✅' if self.zhipu_api_key else '未配置 ❌'}\n"
+            debug_msg += f"API Key 长度: {len(self.zhipu_api_key)}\n"
+            debug_msg += f"模型: {self.zhipu_model}\n"
+            debug_msg += f"自定义提示词: {'已配置 ✅' if self.ai_prompt else '未配置 ❌'}\n"
+            debug_msg += f"提示词长度: {len(self.ai_prompt)}\n"
+            self.sender.reply(debug_msg)
     
     def get_user_confirmation(self, prompt):
         """
