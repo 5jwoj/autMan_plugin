@@ -163,10 +163,30 @@ class PoopPlugin:
         self.message = self.sender.getMessage().strip()
         
         # 从插件头部注释读取配置
-        # autMan会自动将 [param] 中定义的配置注入到otto桶
-        self.zhipu_api_key = middleware.bucketGet("otto", "poop.zhipu_api_key") or ""
-        self.zhipu_model = middleware.bucketGet("otto", "poop.zhipu_model") or "glm-4-flash"
-        self.ai_prompt = middleware.bucketGet("otto", "poop.ai_prompt") or ""
+        # 根据天气插件的示例，配置应该从插件名称的桶中读取
+        # 桶名：插件名称，key：完整的参数key（带前缀）
+        self.zhipu_api_key = middleware.bucketGet("poop", "poop.zhipu_api_key") or ""
+        self.zhipu_model = middleware.bucketGet("poop", "poop.zhipu_model") or "glm-4-flash"
+        self.ai_prompt = middleware.bucketGet("poop", "poop.ai_prompt") or ""
+        
+        # 🔧 临时方案：如果还是读取不到，尝试其他可能的格式
+        if not self.zhipu_api_key:
+            # 尝试从 otto 桶读取
+            self.zhipu_api_key = middleware.bucketGet("otto", "poop.zhipu_api_key") or ""
+            self.zhipu_model = middleware.bucketGet("otto", "poop.zhipu_model") or "glm-4-flash"
+            self.ai_prompt = middleware.bucketGet("otto", "poop.ai_prompt") or ""
+        
+        # 如果还是没有，使用硬编码配置（仅用于测试）
+        if not self.zhipu_api_key:
+            # 临时硬编码配置（仅用于测试）
+            TEMP_API_KEY = ""  # 在这里填入你的 API Key
+            TEMP_MODEL = "glm-4-flash"  # 模型名称
+            TEMP_PROMPT = "根据我的历史记录，帮我做出分析"  # 自定义提示词
+            
+            if TEMP_API_KEY:  # 如果设置了临时 API Key
+                self.zhipu_api_key = TEMP_API_KEY
+                self.zhipu_model = TEMP_MODEL
+                self.ai_prompt = TEMP_PROMPT
         
         # 调试日志：输出配置读取情况（仅在执行便便分析时显示）
         if self.message == "便便分析":
@@ -179,15 +199,15 @@ class PoopPlugin:
             
             # 尝试读取所有可能的配置键名
             debug_msg += "🔧 配置键名测试：\n"
-            test_keys = [
-                "poop.zhipu_api_key",
-                "zhipu_api_key",
-                "便便.zhipu_api_key",
-                "poop_zhipu_api_key"
+            test_configs = [
+                ("poop", "poop.zhipu_api_key"),
+                ("otto", "poop.zhipu_api_key"),
+                ("poop", "zhipu_api_key"),
+                ("otto", "zhipu_api_key")
             ]
-            for key in test_keys:
-                value = middleware.bucketGet("otto", key) or ""
-                debug_msg += f"  {key}: {'有值' if value else '无值'} (长度: {len(value)})\n"
+            for bucket, key in test_configs:
+                value = middleware.bucketGet(bucket, key) or ""
+                debug_msg += f"  bucketGet(\"{bucket}\", \"{key}\"): {'有值' if value else '无值'} (长度: {len(value)})\n"
             
             self.sender.reply(debug_msg)
     
