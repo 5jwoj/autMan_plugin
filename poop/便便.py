@@ -2,17 +2,17 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.4.0]
-# [param:{"required":false,"key":"poop.zhipu_api_key","bool":false,"placeholder":"sk-","name":"智谱AI密钥","desc":"从 https://open.bigmodel.cn/ 获取，用于AI健康分析功能"}]
-# [param:{"required":false,"key":"poop.zhipu_model","bool":false,"placeholder":"glm-4-flash","name":"智谱AI模型","desc":"默认使用 glm-4-flash，可选 glm-4、glm-4-plus 等"}]
-# [param:{"required":false,"key":"poop.ai_prompt","bool":false,"placeholder":"","name":"AI分析提示词","desc":"自定义AI分析的提示词，留空使用默认提示词"}]
+# [version: 1.4.1]
+# [param:{"required":false,"key":"zhipu_api_key","bool":false,"placeholder":"sk-","name":"智谱AI密钥","desc":"从 https://open.bigmodel.cn/ 获取，用于AI健康分析功能"}]
+# [param:{"required":false,"key":"zhipu_model","bool":false,"placeholder":"glm-4-flash","name":"智谱AI模型","desc":"默认使用 glm-4-flash，可选 glm-4、glm-4-plus 等"}]
+# [param:{"required":false,"key":"ai_prompt","bool":false,"placeholder":"","name":"AI分析提示词","desc":"自定义AI分析的提示词，留空使用默认提示词"}]
 
 """
 autMan 插件 - 便便记录
 
 功能：记录、查看和删除便便事件，支持AI健康分析
 作者：AI Assistant
-版本：v1.4.0
+版本：v1.4.1
 日期：2026-02-06
 
 使用说明：
@@ -36,7 +36,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.4.0"
+VERSION = "v1.4.1"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -163,53 +163,11 @@ class PoopPlugin:
         self.message = self.sender.getMessage().strip()
         
         # 从插件头部注释读取配置
-        # 根据天气插件的示例，配置应该从插件名称的桶中读取
-        # 桶名：插件名称，key：完整的参数key（带前缀）
-        self.zhipu_api_key = middleware.bucketGet("poop", "poop.zhipu_api_key") or ""
-        self.zhipu_model = middleware.bucketGet("poop", "poop.zhipu_model") or "glm-4-flash"
-        self.ai_prompt = middleware.bucketGet("poop", "poop.ai_prompt") or ""
-        
-        # 🔧 临时方案：如果还是读取不到，尝试其他可能的格式
-        if not self.zhipu_api_key:
-            # 尝试从 otto 桶读取
-            self.zhipu_api_key = middleware.bucketGet("otto", "poop.zhipu_api_key") or ""
-            self.zhipu_model = middleware.bucketGet("otto", "poop.zhipu_model") or "glm-4-flash"
-            self.ai_prompt = middleware.bucketGet("otto", "poop.ai_prompt") or ""
-        
-        # 如果还是没有，使用硬编码配置（仅用于测试）
-        if not self.zhipu_api_key:
-            # 临时硬编码配置（仅用于测试）
-            TEMP_API_KEY = ""  # 在这里填入你的 API Key
-            TEMP_MODEL = "glm-4-flash"  # 模型名称
-            TEMP_PROMPT = "根据我的历史记录，帮我做出分析"  # 自定义提示词
-            
-            if TEMP_API_KEY:  # 如果设置了临时 API Key
-                self.zhipu_api_key = TEMP_API_KEY
-                self.zhipu_model = TEMP_MODEL
-                self.ai_prompt = TEMP_PROMPT
-        
-        # 调试日志：输出配置读取情况（仅在执行便便分析时显示）
-        if self.message == "便便分析":
-            debug_msg = "🔍 调试信息：\n\n"
-            debug_msg += f"API Key: {'已配置 ✅' if self.zhipu_api_key else '未配置 ❌'}\n"
-            debug_msg += f"API Key 长度: {len(self.zhipu_api_key)}\n"
-            debug_msg += f"模型: {self.zhipu_model}\n"
-            debug_msg += f"自定义提示词: {'已配置 ✅' if self.ai_prompt else '未配置 ❌'}\n"
-            debug_msg += f"提示词长度: {len(self.ai_prompt)}\n\n"
-            
-            # 尝试读取所有可能的配置键名
-            debug_msg += "🔧 配置键名测试：\n"
-            test_configs = [
-                ("poop", "poop.zhipu_api_key"),
-                ("otto", "poop.zhipu_api_key"),
-                ("poop", "zhipu_api_key"),
-                ("otto", "zhipu_api_key")
-            ]
-            for bucket, key in test_configs:
-                value = middleware.bucketGet(bucket, key) or ""
-                debug_msg += f"  bucketGet(\"{bucket}\", \"{key}\"): {'有值' if value else '无值'} (长度: {len(value)})\n"
-            
-            self.sender.reply(debug_msg)
+        # 根据调试结果,配置存储在不带前缀的键名中
+        # 桶名：插件名称(poop)，key：不带前缀的参数名(如 zhipu_api_key)
+        self.zhipu_api_key = middleware.bucketGet("poop", "zhipu_api_key") or ""
+        self.zhipu_model = middleware.bucketGet("poop", "zhipu_model") or "glm-4-flash"
+        self.ai_prompt = middleware.bucketGet("poop", "ai_prompt") or ""
     
     def get_user_confirmation(self, prompt):
         """
