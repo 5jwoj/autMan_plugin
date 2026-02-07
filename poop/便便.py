@@ -2,7 +2,7 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.4.2]
+# [version: 1.4.3]
 # [param:{"required":false,"key":"zhipu_api_key","bool":false,"placeholder":"sk-","name":"智谱AI密钥","desc":"从 https://open.bigmodel.cn/ 获取，用于AI健康分析功能"}]
 # [param:{"required":false,"key":"zhipu_model","bool":false,"placeholder":"glm-4-flash","name":"智谱AI模型","desc":"默认使用 glm-4-flash，可选 glm-4、glm-4-plus 等"}]
 # [param:{"required":false,"key":"ai_prompt","bool":false,"placeholder":"","name":"AI分析提示词","desc":"自定义AI分析的提示词，留空使用默认提示词"}]
@@ -12,7 +12,7 @@ autMan 插件 - 便便记录
 
 功能：记录、查看和删除便便事件，支持AI健康分析
 作者：AI Assistant
-版本：v1.4.2
+版本：v1.4.3
 日期：2026-02-06
 
 使用说明：
@@ -36,7 +36,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.4.2"
+VERSION = "v1.4.3"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -95,7 +95,13 @@ class ZhipuAI:
         
         # 构建提示词
         if custom_prompt:
-            prompt = custom_prompt.replace("{data}", data_summary)
+            # 如果自定义提示词包含{data}占位符,则替换
+            if "{data}" in custom_prompt:
+                prompt = custom_prompt.replace("{data}", data_summary)
+            else:
+                # 如果没有占位符,强制在开头添加数据摘要
+                prompt = f"{data_summary}\n\n{custom_prompt}"
+                print(f"[ZhipuAI] ⚠️ 自定义提示词未包含{{data}}占位符,已自动添加数据摘要")
         else:
             prompt = f"""你是一位专业的健康顾问，请根据以下便便记录数据进行健康分析：
 
@@ -842,7 +848,7 @@ class PoopPlugin:
                     recent_7days.append(record)
             
             if not recent_7days:
-                self.sender.reply("📭 暂无最近7天的记录，无法进行分析\\n\\n💡 发送「便便」可以记录新的事件")
+                self.sender.reply("📭 暂无最近7天的记录，无法进行分析\n\n💡 发送「便便」可以记录新的事件")
                 return
             
             # 统计状态分布
@@ -859,17 +865,17 @@ class PoopPlugin:
             avg_freq = total_count / 7
             
             # 构建数据摘要
-            data_summary = f"📊 即将发送给AI的数据摘要：\\n\\n"
-            data_summary += f"最近7天便便记录：\\n"
-            data_summary += f"- 总次数：{total_count}次\\n"
-            data_summary += f"- 平均频率：{avg_freq:.2f}次/天\\n"
-            data_summary += f"- 状态分布：\\n"
+            data_summary = f"📊 即将发送给AI的数据摘要：\n\n"
+            data_summary += f"最近7天便便记录：\n"
+            data_summary += f"- 总次数：{total_count}次\n"
+            data_summary += f"- 平均频率：{avg_freq:.2f}次/天\n"
+            data_summary += f"- 状态分布：\n"
             for status, count in status_dist.items():
                 percent = count / total_count * 100
-                data_summary += f"  • {status}：{count}次 ({percent:.1f}%)\\n"
+                data_summary += f"  • {status}：{count}次 ({percent:.1f}%)\n"
             
             # 显示数据摘要给用户
-            self.sender.reply(data_summary + "\\n⏳ 正在调用AI分析...")
+            self.sender.reply(data_summary + "\n⏳ 正在调用AI分析...")
             print(f"[便便插件] 数据摘要已发送给用户")
             
             # 调用智谱AI进行分析
