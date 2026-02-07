@@ -2,17 +2,17 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.4.3]
-# [param:{"required":false,"key":"zhipu_api_key","bool":false,"placeholder":"sk-","name":"智谱AI密钥","desc":"从 https://open.bigmodel.cn/ 获取，用于AI健康分析功能"}]
-# [param:{"required":false,"key":"zhipu_model","bool":false,"placeholder":"glm-4-flash","name":"智谱AI模型","desc":"默认使用 glm-4-flash，可选 glm-4、glm-4-plus 等"}]
-# [param:{"required":false,"key":"ai_prompt","bool":false,"placeholder":"","name":"AI分析提示词","desc":"自定义AI分析的提示词，留空使用默认提示词"}]
+# [version: 1.5.2]
+# [param:{"required":false,"key":"便便.zhipu_api_key","bool":false,"placeholder":"sk-","name":"智谱AI密钥","desc":"从 https://open.bigmodel.cn/ 获取，用于AI健康分析功能"}]
+# [param:{"required":false,"key":"便便.zhipu_model","bool":false,"placeholder":"glm-4-flash","name":"智谱AI模型","desc":"默认使用 glm-4-flash，可选 glm-4、glm-4-plus 等"}]
+# [param:{"required":false,"key":"便便.ai_prompt","bool":false,"placeholder":"","name":"AI分析提示词","desc":"自定义AI分析的提示词，留空使用默认提示词"}]
 
 """
 autMan 插件 - 便便记录
 
 功能：记录、查看和删除便便事件，支持AI健康分析
 作者：AI Assistant
-版本：v1.4.3
+版本：v1.5.2
 日期：2026-02-06
 
 使用说明：
@@ -36,7 +36,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.4.3"
+VERSION = "v1.5.2"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -59,21 +59,13 @@ class ZhipuAI:
         from collections import Counter
         from datetime import datetime as dt, timedelta
         
-        # 统计最近7天的数据
-        recent_7days = []
-        cutoff_date = dt.now() - timedelta(days=7)
-        
-        for record in records:
-            record_date = dt.strptime(record['datetime'], '%Y-%m-%d %H:%M:%S')
-            if record_date >= cutoff_date:
-                recent_7days.append(record)
-        
-        if not recent_7days:
-            return "暂无最近7天的记录，无法进行分析。"
+        # 使用全部记录进行分析
+        if not records:
+            return "暂无记录，无法进行分析。"
         
         # 统计状态分布
         status_list = []
-        for record in recent_7days:
+        for record in records:
             if 'process_desc' in record:
                 status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
             else:
@@ -81,11 +73,18 @@ class ZhipuAI:
             status_list.append(status)
         
         status_dist = Counter(status_list)
-        total_count = len(recent_7days)
-        avg_freq = total_count / 7
+        total_count = len(records)
+        
+        # 计算时间跨度和平均频率
+        dates = sorted(set([r['datetime'].split(' ')[0] for r in records]))
+        first_date = dates[0]
+        last_date = dates[-1]
+        date_span = (dt.strptime(last_date, '%Y-%m-%d') - dt.strptime(first_date, '%Y-%m-%d')).days + 1
+        avg_freq = total_count / date_span if date_span > 0 else total_count
         
         # 构建数据摘要
-        data_summary = f"最近7天便便记录：\n"
+        data_summary = f"便便记录完整数据：\n"
+        data_summary += f"- 记录时段：{first_date} 至 {last_date} (共{date_span}天)\n"
         data_summary += f"- 总次数：{total_count}次\n"
         data_summary += f"- 平均频率：{avg_freq:.2f}次/天\n"
         data_summary += f"- 状态分布：\n"
@@ -109,12 +108,12 @@ class ZhipuAI:
 
 请提供：
 1. 健康状况评估（正常/需注意/建议就医）
-2. 具体分析（从频率、状态等方面）
+2. 具体分析（从频率、状态、趋势等方面）
 3. 健康建议（饮食、作息等方面）
 
 要求：
 - 语气专业但温和
-- 控制在200字以内
+- 控制在250字以内
 - 给出实用的建议
 - 如有异常情况，建议就医"""
         
@@ -174,12 +173,41 @@ class PoopPlugin:
         self.imtype = self.sender.getImtype()
         self.message = self.sender.getMessage().strip()
         
-        # 从插件头部注释读取配置
-        # 根据调试结果,配置存储在不带前缀的键名中
-        # 桶名：插件名称(poop)，key：不带前缀的参数名(如 zhipu_api_key)
-        self.zhipu_api_key = middleware.bucketGet("poop", "zhipu_api_key") or ""
-        self.zhipu_model = middleware.bucketGet("poop", "zhipu_model") or "glm-4-flash"
-        self.ai_prompt = middleware.bucketGet("poop", "ai_prompt") or ""
+        
+        # 从插件头部注释读取配置 - 尝试多种可能的组合
+        # 可能的组合: (桶名, key格式)
+        config_attempts = [
+            ("otto", "便便.zhipu_api_key"),
+            ("poop", "便便.zhipu_api_key"),
+            ("便便", "便便.zhipu_api_key"),
+            ("otto", "zhipu_api_key"),
+            ("poop", "zhipu_api_key"),
+            ("便便", "zhipu_api_key"),
+        ]
+        
+        self.zhipu_api_key = ""
+        self.zhipu_model = "glm-4-flash"
+        self.ai_prompt = ""
+        
+        # 尝试读取配置
+        for bucket, key_prefix in config_attempts:
+            api_key = middleware.bucketGet(bucket, key_prefix if "zhipu_api_key" in key_prefix else f"{key_prefix}")
+            if api_key:
+                self.zhipu_api_key = api_key
+                self.zhipu_model = middleware.bucketGet(bucket, key_prefix.replace("zhipu_api_key", "zhipu_model")) or "glm-4-flash"
+                self.ai_prompt = middleware.bucketGet(bucket, key_prefix.replace("zhipu_api_key", "ai_prompt")) or ""
+                print(f"[便便插件] ✅ 成功从桶 '{bucket}' 读取配置, key格式: '{key_prefix}'")
+                break
+        
+        # 如果还是没读到,输出调试信息
+        if not self.zhipu_api_key and self.message == "便便分析":
+            debug_msg = "🔍 配置读取调试:\n\n"
+            for bucket, key in config_attempts:
+                test_key = key if "zhipu_api_key" in key else f"{key}"
+                value = middleware.bucketGet(bucket, test_key) or ""
+                debug_msg += f"bucketGet('{bucket}', '{test_key}'): {'✅有值' if value else '❌无值'} (长度:{len(value)})\n"
+            self.sender.reply(debug_msg)
+        
     
     def get_user_confirmation(self, prompt):
         """
@@ -297,7 +325,7 @@ class PoopPlugin:
         
         if confirmation == "y":
             # 第二步：询问便便过程
-            self.sender.reply("💩 请选择便便过程：\n\n  A - 通畅 😊\n  B - 一般 😐\n  C - 费劲 😣\n  D - 拉稀 💧\n  q - 退出")
+            self.sender.reply("💩 请选择便便过程：\n\n  A - 通畅 😊\n  B - 一般 😐\n  C - 费劲 😣\n  D - 拉稀 💧\n  E - 用药 💊\n  q - 退出")
             
             process_input = self.sender.listen(INPUT_TIMEOUT)
             
@@ -312,8 +340,8 @@ class PoopPlugin:
                 return
             
             # 验证输入
-            if process not in ["A", "B", "C", "D"]:
-                self.sender.reply("❌ 无效的选项，请输入 A、B、C 或 D")
+            if process not in ["A", "B", "C", "D", "E"]:
+                self.sender.reply("❌ 无效的选项，请输入 A、B、C、D 或 E")
                 return
             
             # 映射过程描述
@@ -321,7 +349,8 @@ class PoopPlugin:
                 "A": "通畅 😊",
                 "B": "一般 😐",
                 "C": "费劲 😣",
-                "D": "拉稀 💧"
+                "D": "拉稀 💧",
+                "E": "用药 💊"
             }
             process_desc = process_map[process]
             
@@ -838,22 +867,14 @@ class PoopPlugin:
             from collections import Counter
             from datetime import datetime as dt, timedelta
             
-            # 统计最近7天的数据
-            recent_7days = []
-            cutoff_date = dt.now() - timedelta(days=7)
-            
-            for record in records:
-                record_date = dt.strptime(record['datetime'], '%Y-%m-%d %H:%M:%S')
-                if record_date >= cutoff_date:
-                    recent_7days.append(record)
-            
-            if not recent_7days:
-                self.sender.reply("📭 暂无最近7天的记录，无法进行分析\n\n💡 发送「便便」可以记录新的事件")
+            # 使用全部记录进行分析
+            if not records:
+                self.sender.reply("📭 暂无记录，无法进行分析\n\n💡 发送「便便」可以记录新的事件")
                 return
             
             # 统计状态分布
             status_list = []
-            for record in recent_7days:
+            for record in records:
                 if 'process_desc' in record:
                     status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
                 else:
@@ -861,12 +882,19 @@ class PoopPlugin:
                 status_list.append(status)
             
             status_dist = Counter(status_list)
-            total_count = len(recent_7days)
-            avg_freq = total_count / 7
+            total_count = len(records)
+            
+            # 计算时间跨度和平均频率
+            dates = sorted(set([r['datetime'].split(' ')[0] for r in records]))
+            first_date = dates[0]
+            last_date = dates[-1]
+            date_span = (dt.strptime(last_date, '%Y-%m-%d') - dt.strptime(first_date, '%Y-%m-%d')).days + 1
+            avg_freq = total_count / date_span if date_span > 0 else total_count
             
             # 构建数据摘要
             data_summary = f"📊 即将发送给AI的数据摘要：\n\n"
-            data_summary += f"最近7天便便记录：\n"
+            data_summary += f"便便记录完整数据：\n"
+            data_summary += f"- 记录时段：{first_date} 至 {last_date} (共{date_span}天)\n"
             data_summary += f"- 总次数：{total_count}次\n"
             data_summary += f"- 平均频率：{avg_freq:.2f}次/天\n"
             data_summary += f"- 状态分布：\n"
