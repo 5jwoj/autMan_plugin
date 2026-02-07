@@ -2,7 +2,7 @@
 # [rule: ^便便(.*)$]
 # [admin: false]
 # [price: 0.00]
-# [version: 1.4.1]
+# [version: 1.4.2]
 # [param:{"required":false,"key":"zhipu_api_key","bool":false,"placeholder":"sk-","name":"智谱AI密钥","desc":"从 https://open.bigmodel.cn/ 获取，用于AI健康分析功能"}]
 # [param:{"required":false,"key":"zhipu_model","bool":false,"placeholder":"glm-4-flash","name":"智谱AI模型","desc":"默认使用 glm-4-flash，可选 glm-4、glm-4-plus 等"}]
 # [param:{"required":false,"key":"ai_prompt","bool":false,"placeholder":"","name":"AI分析提示词","desc":"自定义AI分析的提示词，留空使用默认提示词"}]
@@ -12,7 +12,7 @@ autMan 插件 - 便便记录
 
 功能：记录、查看和删除便便事件，支持AI健康分析
 作者：AI Assistant
-版本：v1.4.1
+版本：v1.4.2
 日期：2026-02-06
 
 使用说明：
@@ -36,7 +36,7 @@ from datetime import datetime
 
 # 配置常量
 BUCKET_NAME = "poop"
-VERSION = "v1.4.1"
+VERSION = "v1.4.2"
 INPUT_TIMEOUT = 60000  # 60秒超时
 
 
@@ -112,6 +112,12 @@ class ZhipuAI:
 - 给出实用的建议
 - 如有异常情况，建议就医"""
         
+        # 调试日志：输出数据摘要
+        print(f"[ZhipuAI] ========== 数据摘要 ==========")
+        print(data_summary)
+        print(f"[ZhipuAI] ========== 完整提示词 ==========")
+        print(prompt)
+        print(f"[ZhipuAI] ========== 开始调用 API ==========")
         print(f"[ZhipuAI] 准备调用 API")
         print(f"[ZhipuAI] 模型: {self.model}")
         print(f"[ZhipuAI] 提示词长度: {len(prompt)}")
@@ -821,6 +827,50 @@ class PoopPlugin:
             print(f"[便便插件] 开始调用智谱 AI API")
             print(f"[便便插件] 使用模型: {self.zhipu_model}")
             print(f"[便便插件] 自定义提示词: {'是' if self.ai_prompt else '否'}")
+            
+            # 先生成数据摘要,显示给用户确认
+            from collections import Counter
+            from datetime import datetime as dt, timedelta
+            
+            # 统计最近7天的数据
+            recent_7days = []
+            cutoff_date = dt.now() - timedelta(days=7)
+            
+            for record in records:
+                record_date = dt.strptime(record['datetime'], '%Y-%m-%d %H:%M:%S')
+                if record_date >= cutoff_date:
+                    recent_7days.append(record)
+            
+            if not recent_7days:
+                self.sender.reply("📭 暂无最近7天的记录，无法进行分析\\n\\n💡 发送「便便」可以记录新的事件")
+                return
+            
+            # 统计状态分布
+            status_list = []
+            for record in recent_7days:
+                if 'process_desc' in record:
+                    status = record['process_desc'].split()[0] if record['process_desc'] else "未知"
+                else:
+                    status = "未知"
+                status_list.append(status)
+            
+            status_dist = Counter(status_list)
+            total_count = len(recent_7days)
+            avg_freq = total_count / 7
+            
+            # 构建数据摘要
+            data_summary = f"📊 即将发送给AI的数据摘要：\\n\\n"
+            data_summary += f"最近7天便便记录：\\n"
+            data_summary += f"- 总次数：{total_count}次\\n"
+            data_summary += f"- 平均频率：{avg_freq:.2f}次/天\\n"
+            data_summary += f"- 状态分布：\\n"
+            for status, count in status_dist.items():
+                percent = count / total_count * 100
+                data_summary += f"  • {status}：{count}次 ({percent:.1f}%)\\n"
+            
+            # 显示数据摘要给用户
+            self.sender.reply(data_summary + "\\n⏳ 正在调用AI分析...")
+            print(f"[便便插件] 数据摘要已发送给用户")
             
             # 调用智谱AI进行分析
             ai = ZhipuAI(self.zhipu_api_key, self.zhipu_model)
